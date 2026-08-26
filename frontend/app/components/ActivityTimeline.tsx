@@ -1,8 +1,10 @@
 import type { IncidentEvent } from "@/lib/types";
+import { Card, EmptyState, SectionLabel } from "./ui";
 
 const TYPE_ICON: Record<string, string> = {
   investigation_started: "🔍",
   diagnosis: "🧠",
+  similar_incident_found: "◎",
   auto_approved: "⚡",
   awaiting_approval: "⏸",
   approved: "✅",
@@ -24,26 +26,20 @@ function formatTime(iso: string): string {
 
 export function ActivityTimeline({ events }: { events: IncidentEvent[] }) {
   if (events.length === 0) {
-    return (
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-        No activity yet.
-      </div>
-    );
+    return <EmptyState>No activity yet.</EmptyState>;
   }
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        Agent activity
-      </h2>
+    <Card>
+      <SectionLabel>Agent activity</SectionLabel>
       <ul className="space-y-2 font-mono text-sm">
         {events.map((e, i) => (
-          <li key={i} className="flex gap-3 text-zinc-700 dark:text-zinc-300">
-            <span className="shrink-0 text-zinc-400">{formatTime(e.created_at)}</span>
+          <li key={i} className="flex gap-3 text-[var(--color-text-secondary)]">
+            <span className="shrink-0 text-[var(--color-text-muted)]">{formatTime(e.created_at)}</span>
             <span>{TYPE_ICON[e.type] || "•"}</span>
             <span>{e.message}</span>
           </li>
         ))}
       </ul>
-    </div>
+    </Card>
   );
 }

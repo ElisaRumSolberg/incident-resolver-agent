@@ -1,160 +1,105 @@
 "use client";
 
-import { useState } from "react";
-import {
-  approveRemediation,
-  getIncident,
-  rejectRemediation,
-  resetDemo,
-  startInvestigation,
-  triggerDemoScenario,
-} from "@/lib/api";
-import { isHealthySnapshot, type IncidentResponse } from "@/lib/types";
-import { ActivityTimeline } from "./components/ActivityTimeline";
-import { IncidentOverview } from "./components/IncidentOverview";
-import { RemediationPanel } from "./components/RemediationPanel";
-import { ScenarioTrigger } from "./components/ScenarioTrigger";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { getOverview, listIncidents } from "@/lib/api";
+import type { Incident, OverviewStats } from "@/lib/types";
+import { SeverityLabel, StatusBadge } from "./components/Badges";
+import { Card, EmptyState, SectionLabel, StatTile } from "./components/ui";
 
-export default function Home() {
-  const [data, setData] = useState<IncidentResponse | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string>(
-    "Trigger a failure scenario below to see the agent investigate and resolve it."
-  );
-  const [loading, setLoading] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const ACTIVE_STATUSES = new Set(["investigating", "awaiting_approval", "remediating", "verifying"]);
 
-  async function handleTrigger(scenario: string) {
-    setLoading(true);
-    setError(null);
-    setData(null);
-    setStatusMessage("Incident triggered. Agent is investigating...");
-    try {
-      await triggerDemoScenario(scenario);
-      const result = await startInvestigation();
-      if (isHealthySnapshot(result)) {
-        setStatusMessage(result.message);
-      } else {
-        setData(result);
-        setStatusMessage("");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+function formatSeconds(s: number | null): string {
+  if (s === null) return "—";
+  if (s < 60) return `${s}s`;
+  return `${Math.floor(s / 60)}m ${s % 60}s`;
+}
 
-  async function handleReset() {
-    setLoading(true);
-    setError(null);
-    try {
-      await resetDemo();
-      setData(null);
-      setStatusMessage("Demo service reset to healthy baseline.");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }
+export default function OverviewPage() {
+  const [stats, setStats] = useState<OverviewStats | null>(null);
+  const [live, setLive] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  async function handleApprove(remediationId: string) {
-    if (!data) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await approveRemediation(data.incident.id, remediationId);
-      setData(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleReject(remediationId: string) {
-    if (!data) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const result = await rejectRemediation(data.incident.id, remediationId);
-      setData(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleRefresh() {
-    if (!data) return;
-    setError(null);
-    try {
-      const result = await getIncident(data.incident.id);
-      setData(result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  const latestRemediation = data?.remediations[data.remediations.length - 1];
+  useEffect(() => {
+    Promise.all([getOverview(), listIncidents()])
+      .then(([overview, { incidents }]) => {
+        setStats(overview);
+        setLive(incidents.filter((i) => ACTIVE_STATUSES.has(i.status)));
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
-      <main className="mx-auto flex max-w-3xl flex-col gap-6">
-        <header>
-          <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-            Autonomous Incident Resolver Agent
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Observe → investigate → diagnose → act → verify → re-plan, powered by Gemini + Google ADK.
-          </p>
-        </header>
+    <div className="px-8 py-8">
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold text-[var(--color-text-primary)]">
+          Autonomous Incident Resolver
+        </h1>
+        <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
+          Production Operations Center — observe, diagnose, act, verify, re-plan.
+        </p>
+      </header>
 
-        <ScenarioTrigger onTrigger={handleTrigger} onReset={handleReset} disabled={loading} />
+      {loading && <EmptyState>Loading operations data...</EmptyState>}
 
-        {error && (
-          <div className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
-            {error}
+      {!loading && stats && (
+        <>
+          <Card className="mb-6 flex p-0">
+            <StatTile label="Active" value={String(stats.active_count)} accent="var(--color-critical)" />
+            <StatTile label="Resolved today" value={String(stats.resolved_today)} accent="var(--color-success)" />
+            <StatTile label="Auto-fix rate" value={`${stats.auto_resolved_rate}%`} accent="var(--color-accent)" />
+            <StatTile label="Avg recovery" value={formatSeconds(stats.avg_recovery_seconds)} />
+            <StatTile
+              label="Awaiting approval"
+              value={String(stats.awaiting_approval_count)}
+              accent="var(--color-warning)"
+            />
+          </Card>
+
+          <div className="mb-6 flex items-center gap-2 rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/10 px-4 py-3 text-sm text-[var(--color-accent)]">
+            <span>◎</span>
+            Agent learned from {stats.incidents_learned_from} previous incident
+            {stats.incidents_learned_from === 1 ? "" : "s"}.
           </div>
-        )}
 
-        {loading && (
-          <div className="rounded-xl border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 dark:border-zinc-700">
-            Agent is investigating — reading logs, checking config, diagnosing root cause...
-          </div>
-        )}
-
-        {!loading && !data && statusMessage && (
-          <div className="rounded-xl border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900">
-            {statusMessage}
-          </div>
-        )}
-
-        {data && (
-          <>
-            <div className="flex justify-end">
-              <button
-                onClick={handleRefresh}
-                className="text-xs font-medium text-zinc-500 underline hover:text-zinc-800 dark:hover:text-zinc-200"
-              >
-                Refresh
-              </button>
+          <SectionLabel>Live incidents</SectionLabel>
+          {live.length === 0 ? (
+            <EmptyState>
+              No active incidents.{" "}
+              <Link href="/incidents" className="text-[var(--color-primary)] underline">
+                Trigger a demo scenario
+              </Link>{" "}
+              to see the agent in action.
+            </EmptyState>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {live.map((incident) => (
+                <Link key={incident.id} href={`/incidents/${incident.id}`}>
+                  <Card className="transition hover:border-[var(--color-primary)]/50">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="font-mono text-sm text-[var(--color-text-secondary)]">
+                        {incident.service_id}
+                      </span>
+                      <StatusBadge status={incident.status} />
+                    </div>
+                    <div className="text-sm text-[var(--color-text-primary)]">
+                      {incident.root_cause || "Investigating..."}
+                    </div>
+                    <div className="mt-2 flex items-center gap-3 text-xs">
+                      <SeverityLabel severity={incident.severity} />
+                      {incident.confidence !== null && (
+                        <span className="text-[var(--color-text-muted)]">
+                          {Math.round(incident.confidence * 100)}% confidence
+                        </span>
+                      )}
+                    </div>
+                  </Card>
+                </Link>
+              ))}
             </div>
-            <IncidentOverview incident={data.incident} />
-            {latestRemediation && (
-              <RemediationPanel
-                remediation={latestRemediation}
-                onApprove={() => handleApprove(latestRemediation.id)}
-                onReject={() => handleReject(latestRemediation.id)}
-                busy={busy}
-              />
-            )}
-            <ActivityTimeline events={data.events} />
-          </>
-        )}
-      </main>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -19,6 +19,15 @@ export type RemediationStatus =
   | "failed"
   | "blocked";
 
+export interface SimilarIncident {
+  incident_id: string;
+  service_id: string;
+  root_cause: string;
+  action: string | null;
+  result: string;
+  similarity: number;
+}
+
 export interface Incident {
   id: string;
   service_id: string;
@@ -31,6 +40,49 @@ export interface Incident {
   current_hypothesis: string | null;
   next_action: string | null;
   attempted_actions: string[];
+  similar_incidents: SimilarIncident[];
+}
+
+export interface OverviewStats {
+  active_count: number;
+  resolved_today: number;
+  resolved_total: number;
+  avg_recovery_seconds: number | null;
+  auto_resolved_rate: number;
+  awaiting_approval_count: number;
+  incidents_learned_from: number;
+}
+
+export interface RootCauseCategory {
+  category: string;
+  percent: number;
+}
+
+export interface RemediationSuccessRate {
+  action: string;
+  success_rate: number;
+  attempts: number;
+}
+
+export interface AnalyticsData {
+  top_root_causes: RootCauseCategory[];
+  remediation_success_rate: RemediationSuccessRate[];
+}
+
+export interface SafetyStats {
+  auto_executed: number;
+  approved: number;
+  rejected: number;
+  awaiting_approval: number;
+  blocked: number;
+}
+
+export interface Postmortem {
+  incident_id: string;
+  service_id: string;
+  summary: string;
+  recovery_seconds: number | null;
+  root_cause: string | null;
 }
 
 export interface Remediation {

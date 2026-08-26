@@ -13,6 +13,7 @@ from google.cloud import firestore
 from app.agent.activity_log import log_event
 from app.agent.adk_agent import run_diagnosis
 from app.agent.safety import is_auto_executable, risk_for_action
+from app.agent.similarity import find_similar_incidents
 from app.agent.tools import apply_safe_remediation, verify_recovery
 from app.incidents_store import (
     get_incident,
@@ -36,6 +37,7 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
         f"Root cause: {proposal.root_cause} (confidence {proposal.confidence:.0%}). "
         f"Proposed action: {proposal.action}.",
     )
+    similar = find_similar_incidents(db, proposal.root_cause, incident.service_id, incident.id)
     update_incident(
         db,
         incident.id,
@@ -44,7 +46,17 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
         confidence=proposal.confidence,
         severity=proposal.severity,
         next_action=proposal.action,
+        similar_incidents=similar,
     )
+    if similar:
+        top = similar[0]
+        log_event(
+            db,
+            incident.id,
+            "similar_incident_found",
+            f"Similar incident found: {top['similarity']:.0%} match with "
+            f"{top['incident_id'][:8]} (fixed with {top['action']}).",
+        )
     risk = risk_for_action(proposal.action)
 
     if risk is None:

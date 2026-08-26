@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import orchestrator
 from app.agent.activity_log import list_events
+from app.agent.postmortem import generate_postmortem
 from app.agent.tools import check_service_health
+from app.analytics import compute_analytics, compute_overview, compute_safety_stats
 from app.config import settings
 from app.firestore_client import get_firestore_client
 from app.incidents_store import (
@@ -80,9 +82,46 @@ async def start_incident(payload: dict | None = None):
 
 
 @app.get("/incidents")
-def get_incidents():
+def get_incidents(service_id: str | None = None, status: str | None = None):
     db = get_firestore_client()
-    return {"incidents": [i.model_dump() for i in list_incidents(db)]}
+    return {"incidents": [i.model_dump() for i in list_incidents(db, service_id=service_id, status=status)]}
+
+
+@app.get("/overview")
+def get_overview():
+    db = get_firestore_client()
+    return compute_overview(db)
+
+
+@app.get("/analytics")
+def get_analytics():
+    db = get_firestore_client()
+    return compute_analytics(db)
+
+
+@app.get("/safety/stats")
+def get_safety_stats():
+    db = get_firestore_client()
+    return compute_safety_stats(db)
+
+
+@app.get("/incidents/{incident_id}/postmortem")
+async def get_postmortem(incident_id: str):
+    db = get_firestore_client()
+    incident = get_incident(db, incident_id)
+    if incident is None:
+        raise HTTPException(404, "Incident not found.")
+    if incident.status != "resolved":
+        raise HTTPException(400, "Postmortems are only available for resolved incidents.")
+    events = list_events(db, incident_id)
+    return await generate_postmortem(db, incident, events)
+
+
+@app.get("/postmortems")
+def list_postmortems():
+    db = get_firestore_client()
+    snaps = db.collection("postmortems").stream()
+    return {"postmortems": [snap.to_dict() for snap in snaps]}
 
 
 @app.get("/incidents/{incident_id}")

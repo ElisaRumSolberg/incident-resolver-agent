@@ -30,14 +30,27 @@ def update_incident(db: firestore.Client, incident_id: str, **fields) -> None:
     db.collection("incidents").document(incident_id).update(fields)
 
 
-def list_incidents(db: firestore.Client, limit: int = 20) -> list[Incident]:
+def list_incidents(
+    db: firestore.Client,
+    limit: int = 50,
+    service_id: str | None = None,
+    status: str | None = None,
+) -> list[Incident]:
+    # Filtered in Python rather than with Firestore .where() + .order_by() on a
+    # different field, which would require a manual composite index — not
+    # worth it at this data volume.
     snaps = (
         db.collection("incidents")
         .order_by("started_at", direction=firestore.Query.DESCENDING)
-        .limit(limit)
+        .limit(200)
         .stream()
     )
-    return [Incident(**snap.to_dict()) for snap in snaps]
+    incidents = [Incident(**snap.to_dict()) for snap in snaps]
+    if service_id:
+        incidents = [i for i in incidents if i.service_id == service_id]
+    if status:
+        incidents = [i for i in incidents if i.status == status]
+    return incidents[:limit]
 
 
 def new_remediation(

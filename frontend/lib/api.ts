@@ -1,4 +1,11 @@
-import type { IncidentResponse, StartIncidentResponse } from "./types";
+import type {
+  AnalyticsData,
+  IncidentResponse,
+  OverviewStats,
+  Postmortem,
+  SafetyStats,
+  StartIncidentResponse,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -36,8 +43,32 @@ export function getIncident(incidentId: string) {
   return request<IncidentResponse>(`/incidents/${incidentId}`);
 }
 
-export function listIncidents() {
-  return request<{ incidents: IncidentResponse["incident"][] }>("/incidents");
+export function listIncidents(filters?: { service_id?: string; status?: string }) {
+  const params = new URLSearchParams();
+  if (filters?.service_id) params.set("service_id", filters.service_id);
+  if (filters?.status) params.set("status", filters.status);
+  const qs = params.toString();
+  return request<{ incidents: IncidentResponse["incident"][] }>(`/incidents${qs ? `?${qs}` : ""}`);
+}
+
+export function getOverview() {
+  return request<OverviewStats>("/overview");
+}
+
+export function getAnalytics() {
+  return request<AnalyticsData>("/analytics");
+}
+
+export function getSafetyStats() {
+  return request<SafetyStats>("/safety/stats");
+}
+
+export function getPostmortem(incidentId: string) {
+  return request<Postmortem>(`/incidents/${incidentId}/postmortem`);
+}
+
+export function listPostmortems() {
+  return request<{ postmortems: Postmortem[] }>("/postmortems");
 }
 
 export function approveRemediation(incidentId: string, remediationId: string) {

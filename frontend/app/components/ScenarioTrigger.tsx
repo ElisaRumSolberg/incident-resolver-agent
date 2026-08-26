@@ -1,5 +1,7 @@
 "use client";
 
+import { Card, SectionLabel } from "./ui";
+
 const SCENARIOS: { id: string; label: string; description: string }[] = [
   {
     id: "missing_env_var",
@@ -28,29 +30,27 @@ export function ScenarioTrigger({
   disabled: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-        Demo: trigger an incident
-      </h2>
+    <Card>
+      <SectionLabel>Demo: trigger an incident</SectionLabel>
       <div className="grid gap-3 sm:grid-cols-3">
         {SCENARIOS.map((s) => (
           <button
             key={s.id}
             disabled={disabled}
             onClick={() => onTrigger(s.id)}
-            className="rounded-lg border border-zinc-200 p-3 text-left transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-red-950/30"
+            className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] p-3 text-left transition hover:border-[var(--color-critical)]/60 hover:bg-[var(--color-critical)]/10 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <div className="font-medium text-zinc-900 dark:text-zinc-100">{s.label}</div>
-            <div className="mt-1 text-xs text-zinc-500">{s.description}</div>
+            <div className="font-medium text-[var(--color-text-primary)]">{s.label}</div>
+            <div className="mt-1 text-xs text-[var(--color-text-muted)]">{s.description}</div>
           </button>
         ))}
       </div>
       <button
         onClick={onReset}
-        className="mt-3 text-xs font-medium text-zinc-500 underline hover:text-zinc-800 dark:hover:text-zinc-200"
+        className="mt-3 text-xs font-medium text-[var(--color-text-muted)] underline hover:text-[var(--color-text-primary)]"
       >
         Reset demo service to healthy baseline
       </button>
-    </div>
+    </Card>
   );
 }
