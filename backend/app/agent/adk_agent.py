@@ -1,0 +1,132 @@
+from dataclasses import dataclass
+
+from google.adk.agents import LlmAgent
+from google.adk.runners import InMemoryRunner
+from google.adk.tools import FunctionTool
+from google.genai import types
+
+from app.agent.prompts import AGENT_INSTRUCTION, previous_attempts_context
+from app.agent.tools import (
+    extract_error_patterns,
+    inspect_service_config,
+    read_recent_logs,
+)
+from app.config import settings
+from app.models import RemediationProposal
+
+VALID_ACTIONS = {
+    "retry_service",
+    "rerun_health_check",
+    "gather_logs",
+    "restore_env_var",
+    "rollback_revision",
+    "fix_dependency_config",
+}
+
+
+class AgentPipelineError(RuntimeError):
+    """Raised when the agent did not complete the diagnosis sequence."""
+
+
+@dataclass
+class _PipelineState:
+    proposal: RemediationProposal | None = None
+
+
+def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
+    def read_recent_logs_tool(limit: int = 50) -> dict:
+        """Reads recent log entries from the service. Returns a list of
+        {timestamp, level, message} entries, most recent last."""
+        logs = read_recent_logs(service_id, limit=limit)
+        state.__dict__["_logs"] = logs
+        return {"logs": [log.model_dump() for log in logs]}
+
+    def extract_error_patterns_tool() -> dict:
+        """Groups the logs already read via read_recent_logs_tool into
+        recurring error/warning patterns with counts and confidence.
+        Call read_recent_logs_tool first."""
+        logs = state.__dict__.get("_logs")
+        if not logs:
+            return {"error": "call read_recent_logs_tool first"}
+        patterns = extract_error_patterns(logs)
+        return {"patterns": [p.model_dump() for p in patterns]}
+
+    def inspect_service_config_tool() -> dict:
+        """Returns safe, non-secret configuration metadata for the service
+        (e.g. whether required config values are set, current revision)."""
+        snapshot = inspect_service_config(service_id)
+        return snapshot.model_dump()
+
+    def propose_remediation_tool(
+        root_cause: str, confidence: float, severity: str, action: str, reason: str
+    ) -> dict:
+        """Records your final diagnosis and proposed remediation. Call this
+        exactly once, after investigating with the other tools.
+
+        Args:
+            root_cause: the specific root cause you identified, grounded in evidence.
+            confidence: your confidence in this diagnosis, 0 to 1.
+            severity: one of low, medium, high, critical.
+            action: one of retry_service, rerun_health_check, gather_logs,
+                restore_env_var, rollback_revision, fix_dependency_config.
+            reason: why this action addresses the root cause you found.
+        """
+        if action not in VALID_ACTIONS:
+            return {
+                "error": f"'{action}' is not a known action. Choose one of: "
+                f"{', '.join(sorted(VALID_ACTIONS))}"
+            }
+        state.proposal = RemediationProposal(
+            root_cause=root_cause,
+            confidence=confidence,
+            severity=severity,  # type: ignore[arg-type]
+            action=action,
+            reason=reason,
+        )
+        return {"recorded": True}
+
+    return [
+        FunctionTool(read_recent_logs_tool),
+        FunctionTool(extract_error_patterns_tool),
+        FunctionTool(inspect_service_config_tool),
+        FunctionTool(propose_remediation_tool),
+    ]
+
+
+async def _run_once(service_id: str, attempted_actions: list[str]) -> RemediationProposal:
+    state = _PipelineState()
+    agent = LlmAgent(
+        name="incident_resolver_agent",
+        model=settings.gemini_model,
+        instruction=AGENT_INSTRUCTION + previous_attempts_context(attempted_actions),
+        tools=_build_tools(service_id, state),
+    )
+    runner = InMemoryRunner(agent=agent, app_name="incident_resolver_agent")
+    session = await runner.session_service.create_session(
+        app_name="incident_resolver_agent", user_id="api"
+    )
+
+    content = types.Content(
+        role="user",
+        parts=[
+            types.Part(
+                text=f"Service '{service_id}' is currently unhealthy. Investigate and diagnose it."
+            )
+        ],
+    )
+    async for _event in runner.run_async(user_id="api", session_id=session.id, new_message=content):
+        pass
+
+    if state.proposal is None:
+        raise AgentPipelineError("Agent did not complete the diagnosis/propose_remediation sequence.")
+
+    return state.proposal
+
+
+async def run_diagnosis(service_id: str, attempted_actions: list[str] | None = None) -> RemediationProposal:
+    """Runs the diagnosis agent once, retrying once on failure."""
+    attempted = attempted_actions or []
+    try:
+        return await _run_once(service_id, attempted)
+    except Exception:
+        return await _run_once(service_id, attempted)
