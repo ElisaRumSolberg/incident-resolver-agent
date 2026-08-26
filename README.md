@@ -62,8 +62,18 @@ is never trusted.
 backend/          FastAPI + Google ADK agent + Firestore persistence
 demo-service/      the "production service" the agent watches over — simulates
                     3 deterministic failure scenarios so the demo is reproducible
-frontend/          Next.js dashboard (incident overview, approval UI, activity feed)
+frontend/          Next.js dashboard — a small SRE operations center
 ```
+
+## Dashboard
+
+Five pages behind a sidebar:
+
+- **Overview** — active/resolved/awaiting-approval counts, auto-fix rate, avg recovery time
+- **Incidents** — live incidents + full history with service/status filters, incident detail (evidence, safety decision, approval, timeline)
+- **Memory** — what the agent has learned: top root-cause categories, per-action remediation success rates, and a "similar past incidents" panel on each new diagnosis (deterministic word-overlap + same-service scoring, no embeddings)
+- **Safety** — how many actions were auto-executed, approved, rejected, or blocked, plus the whitelist itself
+- **Postmortems** — one grounded Gemini summary per resolved incident, generated on demand and cached
 
 ## Safety model
 
