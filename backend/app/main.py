@@ -10,6 +10,7 @@ from app.analytics import compute_analytics, compute_overview, compute_safety_st
 from app.config import settings
 from app.firestore_client import get_firestore_client
 from app.incidents_store import (
+    get_active_incident_for_service,
     get_incident,
     list_incidents,
     list_remediations_for_incident,
@@ -71,6 +72,14 @@ def _incident_response(db, incident_id: str) -> dict:
 async def start_incident(payload: dict | None = None):
     service_id = (payload or {}).get("service_id") or settings.demo_service_id
     db = get_firestore_client()
+
+    existing = get_active_incident_for_service(db, service_id)
+    if existing is not None:
+        # Don't start a second, competing investigation for the same
+        # failure — two concurrent incidents racing to remediate the same
+        # service produces false "resolved via X" claims when one incident's
+        # fix accidentally satisfies the other's health check too.
+        return _incident_response(db, existing.id)
 
     health_result = check_service_health(service_id)
     if health_result.status == "healthy":

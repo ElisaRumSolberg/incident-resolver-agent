@@ -70,6 +70,7 @@ class Incident(BaseModel):
     current_hypothesis: Optional[str] = None
     next_action: Optional[str] = None
     attempted_actions: list[str] = Field(default_factory=list)
+    rejected_actions: list[str] = Field(default_factory=list)
     similar_incidents: list[dict] = Field(default_factory=list)
 
 

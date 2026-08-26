@@ -10,6 +10,7 @@ const CATEGORY_COLORS: Record<string, string> = {
   "Bad deployments": "var(--color-critical)",
   "Dependency failures": "var(--color-blocked)",
   "Transient failures": "var(--color-accent)",
+  "Security incidents": "var(--color-critical)",
   Unknown: "var(--color-text-muted)",
 };
 

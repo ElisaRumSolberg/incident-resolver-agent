@@ -40,6 +40,7 @@ export interface Incident {
   current_hypothesis: string | null;
   next_action: string | null;
   attempted_actions: string[];
+  rejected_actions: string[];
   similar_incidents: SimilarIncident[];
 }
 

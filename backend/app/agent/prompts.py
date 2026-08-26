@@ -18,6 +18,11 @@ never invent a new one:
 - restore_env_var: a required environment variable appears to be missing
 - rollback_revision: the current deployment/revision appears to be crash-looping or broken
 - fix_dependency_config: an upstream/external dependency's configuration looks wrong
+- rotate_credentials: logs or config indicate credentials/secrets were exposed
+  or compromised — propose this even though you know it is HIGH risk and will
+  require a human, not an automated fix. Do not propose a lower-risk action
+  just because it's easier to auto-approve; propose whatever the evidence
+  actually points to.
 
 Ground `root_cause` and `reason` in the specific log lines and config values
 you observed — do not speculate beyond the evidence. Set `confidence` (0-1)

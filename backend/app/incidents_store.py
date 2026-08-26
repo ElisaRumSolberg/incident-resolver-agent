@@ -30,6 +30,29 @@ def update_incident(db: firestore.Client, incident_id: str, **fields) -> None:
     db.collection("incidents").document(incident_id).update(fields)
 
 
+ACTIVE_STATUSES = {"investigating", "awaiting_approval", "remediating", "verifying"}
+
+
+def get_active_incident_for_service(db: firestore.Client, service_id: str) -> Incident | None:
+    """Finds an incident already in progress for this service, if any.
+
+    Prevents two concurrent requests (two tabs, a double-fired trigger, a
+    script hitting the API directly) from creating duplicate incidents that
+    both race to remediate the same underlying failure.
+    """
+    snaps = (
+        db.collection("incidents")
+        .order_by("started_at", direction=firestore.Query.DESCENDING)
+        .limit(50)
+        .stream()
+    )
+    for snap in snaps:
+        data = snap.to_dict()
+        if data.get("service_id") == service_id and data.get("status") in ACTIVE_STATUSES:
+            return Incident(**data)
+    return None
+
+
 def list_incidents(
     db: firestore.Client,
     limit: int = 50,

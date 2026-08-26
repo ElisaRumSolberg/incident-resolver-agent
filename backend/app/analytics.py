@@ -19,6 +19,7 @@ ROOT_CAUSE_CATEGORY_BY_ACTION = {
     "retry_service": "Transient failures",
     "rerun_health_check": "Transient failures",
     "gather_logs": "Unknown",
+    "rotate_credentials": "Security incidents",
 }
 
 

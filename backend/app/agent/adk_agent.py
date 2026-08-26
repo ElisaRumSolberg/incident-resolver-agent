@@ -21,6 +21,13 @@ VALID_ACTIONS = {
     "restore_env_var",
     "rollback_revision",
     "fix_dependency_config",
+    # Deliberately NOT in app.agent.safety.ACTION_RISK — the agent is allowed
+    # to name this as a diagnosis (it's a legitimate tool argument, not a
+    # typo/hallucination), but the safety whitelist in orchestrator.py has no
+    # entry for it, so it is always blocked and escalated to a human rather
+    # than auto/approve-executed. This is what makes the "blocked" safety
+    # tier reachable instead of dead code.
+    "rotate_credentials",
 }
 
 
@@ -68,7 +75,8 @@ def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
             confidence: your confidence in this diagnosis, 0 to 1.
             severity: one of low, medium, high, critical.
             action: one of retry_service, rerun_health_check, gather_logs,
-                restore_env_var, rollback_revision, fix_dependency_config.
+                restore_env_var, rollback_revision, fix_dependency_config,
+                rotate_credentials.
             reason: why this action addresses the root cause you found.
         """
         if action not in VALID_ACTIONS:

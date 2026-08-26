@@ -29,7 +29,11 @@ MAX_ATTEMPTS = 3
 
 async def investigate(db: firestore.Client, incident: Incident) -> tuple[Incident, RemediationRecord]:
     log_event(db, incident.id, "investigation_started", f"Investigating incident on {incident.service_id}.")
-    proposal = await run_diagnosis(incident.service_id, incident.attempted_actions)
+    # Avoid repeating both actions that were actually tried and failed, and
+    # actions a human already rejected — but the two are tracked separately
+    # (see reject_remediation) so a rejection doesn't masquerade as a failed
+    # attempt when the incident later escalates.
+    proposal = await run_diagnosis(incident.service_id, incident.attempted_actions + incident.rejected_actions)
     log_event(
         db,
         incident.id,
@@ -96,7 +100,29 @@ async def _apply_and_verify(
 ) -> tuple[Incident, RemediationRecord]:
     update_incident(db, incident.id, status="remediating")
     log_event(db, incident.id, "remediation_applying", f"Applying '{remediation.action}'.")
-    apply_safe_remediation(incident.service_id, remediation.action)
+
+    try:
+        result = apply_safe_remediation(incident.service_id, remediation.action)
+    except Exception as exc:
+        # The target service being unreachable, already fixed by a
+        # concurrent incident, or returning an unexpected error must never
+        # crash the request — it's just a failed attempt, handled the same
+        # way a failed verification is.
+        log_event(db, incident.id, "remediation_apply_failed", f"Applying '{remediation.action}' failed: {exc}")
+        return await _handle_failed_attempt(db, incident, remediation)
+
+    if isinstance(result, dict) and result.get("status") == "no_effect":
+        # The target's state didn't actually match this action anymore (e.g.
+        # a concurrent incident already resolved it differently) — treat as
+        # a failed attempt rather than silently claiming success.
+        log_event(
+            db,
+            incident.id,
+            "remediation_apply_failed",
+            f"'{remediation.action}' had no effect — the service's failure state had already changed.",
+        )
+        return await _handle_failed_attempt(db, incident, remediation)
+
     update_remediation(db, remediation.id, status="applied")
 
     update_incident(db, incident.id, status="verifying")
@@ -115,6 +141,14 @@ async def _apply_and_verify(
         log_event(db, incident.id, "resolved", "Service healthy again. Incident resolved.")
         return get_incident(db, incident.id), get_remediation(db, remediation.id)
 
+    return await _handle_failed_attempt(db, incident, remediation)
+
+
+async def _handle_failed_attempt(
+    db: firestore.Client, incident: Incident, remediation: RemediationRecord
+) -> tuple[Incident, RemediationRecord]:
+    """Marks one remediation attempt as failed, then either re-plans with a
+    different action or escalates to a human once MAX_ATTEMPTS is hit."""
     update_remediation(db, remediation.id, status="failed")
     log_event(
         db, incident.id, "remediation_failed", f"'{remediation.action}' did not resolve the incident. Re-planning."
@@ -164,17 +198,21 @@ async def reject_remediation(
 
     update_remediation(db, remediation.id, status="rejected")
     log_event(db, incident.id, "rejected", f"Human rejected '{remediation.action}'. Re-planning.")
-    attempted = incident.attempted_actions + [remediation.action]
-    update_incident(db, incident.id, attempted_actions=attempted, status="investigating")
+    # Rejections are tracked separately from attempted_actions — a human
+    # declining a proposal is not the same claim as "this was tried and
+    # failed," and must not silently count toward the failed-attempt
+    # escalation threshold used in _handle_failed_attempt.
+    rejected = incident.rejected_actions + [remediation.action]
+    update_incident(db, incident.id, rejected_actions=rejected, status="investigating")
     incident = get_incident(db, incident.id)
 
-    if len(attempted) >= MAX_ATTEMPTS:
+    if len(rejected) >= MAX_ATTEMPTS:
         update_incident(db, incident.id, status="escalation_required")
         log_event(
             db,
             incident.id,
             "escalation",
-            f"Reached max remediation attempts ({MAX_ATTEMPTS}). Escalating to a human.",
+            f"{MAX_ATTEMPTS} proposed remediations were rejected without any being tried. Escalating to a human.",
         )
         return get_incident(db, incident.id), get_remediation(db, remediation_id)
 

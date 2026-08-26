@@ -18,6 +18,11 @@ const SCENARIOS: { id: string; label: string; description: string }[] = [
     label: "Bad deployment",
     description: "The latest revision is crash-looping on startup.",
   },
+  {
+    id: "credential_exposure",
+    label: "Credential exposure",
+    description: "HIGH risk — watch the agent block itself and escalate to a human.",
+  },
 ];
 
 export function ScenarioTrigger({
@@ -32,7 +37,7 @@ export function ScenarioTrigger({
   return (
     <Card>
       <SectionLabel>Demo: trigger an incident</SectionLabel>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {SCENARIOS.map((s) => (
           <button
             key={s.id}
