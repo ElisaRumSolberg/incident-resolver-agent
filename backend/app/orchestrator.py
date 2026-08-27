@@ -61,12 +61,16 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
     )
     if similar:
         top = similar[0]
+        if top["action"]:
+            outcome = f"{top['result']} with {top['action']}"
+        else:
+            outcome = top["result"]
         log_event(
             db,
             incident.id,
             "similar_incident_found",
             f"Similar incident found: {top['similarity']:.0%} match with "
-            f"{top['incident_id'][:8]} (fixed with {top['action']}).",
+            f"{top['incident_id'][:8]} ({outcome}).",
         )
 
     log_event(db, incident.id, "tool_used", "Safety Engine called evaluate_safety_policy.", actor="safety_engine")
