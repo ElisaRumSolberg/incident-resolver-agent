@@ -31,7 +31,7 @@ export default function IncidentDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const { user } = useAuth();
-  const actorName = user?.displayName || user?.email || "dashboard user";
+  const actorName = user?.displayName || user?.email || "guest";
 
   useEffect(() => {
     getAnalytics().then(setAnalytics);

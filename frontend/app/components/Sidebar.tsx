@@ -16,7 +16,7 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, signOut } = useAuth();
+  const { user, isGuest, signOut, signInWithGoogle } = useAuth();
 
   async function handleSignOut() {
     await signOut();
@@ -75,6 +75,22 @@ export function Sidebar() {
                 className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-critical)]"
               >
                 Sign out
+              </button>
+            </div>
+          </div>
+        )}
+        {isGuest && !user && (
+          <div className="flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] px-3 py-2">
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-text-muted)] text-xs font-bold text-white">
+              G
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs font-medium text-[var(--color-text-primary)]">Guest</div>
+              <button
+                onClick={signInWithGoogle}
+                className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+              >
+                Sign in with Google
               </button>
             </div>
           </div>

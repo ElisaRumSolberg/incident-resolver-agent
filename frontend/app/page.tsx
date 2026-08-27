@@ -32,16 +32,16 @@ const FEATURES = [
 ];
 
 export default function WelcomePage() {
-  const { user, loading, signInWithGoogle } = useAuth();
+  const { user, loading, isGuest, signInWithGoogle, continueAsGuest } = useAuth();
   const router = useRouter();
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && user) {
+    if (!loading && (user || isGuest)) {
       router.replace("/overview");
     }
-  }, [loading, user, router]);
+  }, [loading, user, isGuest, router]);
 
   async function handleSignIn() {
     setSigningIn(true);
@@ -53,6 +53,11 @@ export default function WelcomePage() {
     } finally {
       setSigningIn(false);
     }
+  }
+
+  function handleGuest() {
+    continueAsGuest();
+    router.replace("/overview");
   }
 
   return (
@@ -97,6 +102,14 @@ export default function WelcomePage() {
             {signingIn ? "Signing in..." : "Sign in with Google"}
           </button>
           {error && <p className="mt-3 text-xs text-[var(--color-critical)]">{error}</p>}
+          <div className="mt-4">
+            <button
+              onClick={handleGuest}
+              className="text-xs text-[var(--color-text-muted)] underline hover:text-[var(--color-text-secondary)]"
+            >
+              Continue without signing in
+            </button>
+          </div>
         </div>
 
         <div className="mt-20 grid w-full gap-4 sm:grid-cols-2">

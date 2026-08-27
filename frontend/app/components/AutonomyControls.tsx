@@ -26,7 +26,7 @@ export function AutonomyControls() {
   const [settings, setSettings] = useState<GlobalSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const { user } = useAuth();
-  const actorName = user?.displayName || user?.email || "dashboard user";
+  const actorName = user?.displayName || user?.email || "guest";
 
   useEffect(() => {
     getSettings().then(setSettings);

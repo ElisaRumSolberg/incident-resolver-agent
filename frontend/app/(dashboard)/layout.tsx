@@ -6,14 +6,15 @@ import { useAuth } from "@/lib/auth-context";
 import { Sidebar } from "@/app/components/Sidebar";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, isGuest } = useAuth();
   const router = useRouter();
+  const authorized = !!user || isGuest;
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!loading && !authorized) {
       router.replace("/");
     }
-  }, [loading, user, router]);
+  }, [loading, authorized, router]);
 
   if (loading) {
     return (
@@ -23,7 +24,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  if (!user) {
+  if (!authorized) {
     return null;
   }
 
