@@ -7,14 +7,15 @@
 Built for the Google Cloud "All Things Agentic" hackathon — **Taskmaster** track.
 
 The agent is not a log-summarizing chatbot. It runs a closed loop —
-**observe → investigate → reason → act → verify → re-plan** — against a
-whitelisted set of safe remediation actions, asking a human for approval on
-anything above LOW risk and never auto-executing anything outside the
-whitelist at all.
+**observe → investigate → reason → act → verify → re-plan** — evaluated by a
+Safety Policy Engine that combines a base action whitelist, per-service risk
+profiles, a global autonomy mode, and a kill switch. It asks a human for
+approval on anything above LOW risk (or everything, depending on the mode)
+and never auto-executes anything outside the whitelist at all.
 
 ## Live demo
 
-- Dashboard: https://incident-resolver-web-722901486266.us-central1.run.app
+- Dashboard: https://incident-resolver-web-722901486266.us-central1.run.app (sign in with Google)
 - API: https://incident-resolver-api-722901486266.us-central1.run.app
 - Target service (the thing the agent watches over): https://incident-demo-service-722901486266.us-central1.run.app
 
@@ -72,21 +73,38 @@ Five pages behind a sidebar:
 - **Overview** — active/resolved/awaiting-approval counts, auto-fix rate, avg recovery time
 - **Incidents** — live incidents + full history with service/status filters, incident detail (evidence, safety decision, approval, timeline)
 - **Memory** — what the agent has learned: top root-cause categories, per-action remediation success rates, and a "similar past incidents" panel on each new diagnosis (deterministic word-overlap + same-service scoring, no embeddings)
-- **Safety** — how many actions were auto-executed, approved, rejected, or blocked, plus the whitelist itself
+- **Safety** — autonomy mode + kill switch controls, plus how many actions were auto-executed, approved, rejected, or blocked
+- **Services** — per-service risk profiles (criticality, environment, autonomy, allowed/approval-required actions)
 - **Postmortems** — one grounded Gemini summary per resolved incident, generated on demand and cached
+
+Access is gated behind Google sign-in (Firebase Auth) — the root URL is a
+public Welcome page; everything else redirects there if you're not signed in.
 
 ## Safety model
 
-| Risk tier | Examples | Behavior |
+The **Safety Policy Engine** (`backend/app/agent/policy.py`) is the single
+place that decides what happens to a proposed action — it is never bypassed,
+and the agent's own opinion of an action's risk is never trusted:
+
+| Risk tier | Examples | Default behavior |
 |---|---|---|
 | LOW | retry_service, rerun_health_check, gather_logs | Auto-executed immediately |
 | MEDIUM | restore_env_var, rollback_revision, fix_dependency_config | Requires human approval before running |
-| HIGH / unknown | delete_data, rotate_credentials, anything not whitelisted | **Never** auto-executed — incident is marked `escalation_required` for a human |
+| HIGH / unknown | rotate_credentials, anything not whitelisted | **Never** auto-executed — incident is marked `escalation_required` for a human |
+
+On top of the base tier, the engine also applies:
+- **Autonomy mode** (global, `/settings`): Observe Only / Recommend Only (never execute), Approval Required (everything needs a human, even LOW), Autonomous Low-Risk (the table above).
+- **Kill switch**: forces every action to require approval, regardless of mode — monitoring, investigation, and recommendations keep running.
+- **Service risk profiles** (`/services/{id}`): per-service risk overrides, criticality/environment-based escalation (e.g. a LOW action becomes MEDIUM for a CRITICAL production service), an explicit approval-required action list, and a restricted "allowed automatic actions" list.
+- **Execution rate limit**: the same action can only actually run twice per service in a 10-minute window; a 3rd attempt is blocked outright.
 
 If a remediation is applied and verification shows the service still
 unhealthy, the agent re-plans (tries the diagnosis again, excluding
-previously-failed actions) up to a fixed attempt cap, after which it
-escalates to a human rather than looping forever.
+previously-failed actions — enforced in the ADK tool itself, not just
+prompted) up to a fixed attempt cap, after which it escalates to a human
+rather than looping forever. Every remediation carries a full audit trail:
+`approved_by`, `approved_at`, `executed_by`, `execution_id`,
+`policy_decision`, `policy_reason`.
 
 ## Agent tools
 
