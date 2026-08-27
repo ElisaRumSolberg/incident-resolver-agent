@@ -29,9 +29,17 @@ def _parse(ts: str | None) -> datetime | None:
     return datetime.fromisoformat(ts)
 
 
+def _recent(db: firestore.Client, collection: str, order_field: str, limit: int):
+    # Ordered before truncating so a collection past the limit still yields
+    # the most recent documents, not an arbitrary/undefined-order subset —
+    # an unordered .limit() silently dropped brand-new incidents from the
+    # overview once older data pushed past the cap.
+    return db.collection(collection).order_by(order_field, direction=firestore.Query.DESCENDING).limit(limit)
+
+
 def compute_overview(db: firestore.Client) -> dict:
-    incidents = [snap.to_dict() for snap in db.collection("incidents").limit(500).stream()]
-    remediations = [snap.to_dict() for snap in db.collection("remediations").limit(1000).stream()]
+    incidents = [snap.to_dict() for snap in _recent(db, "incidents", "started_at", 500).stream()]
+    remediations = [snap.to_dict() for snap in _recent(db, "remediations", "created_at", 1000).stream()]
 
     active_count = sum(1 for i in incidents if i["status"] in ACTIVE_STATUSES)
     resolved = [i for i in incidents if i["status"] == "resolved"]
@@ -68,8 +76,8 @@ def compute_overview(db: firestore.Client) -> dict:
 
 
 def compute_analytics(db: firestore.Client) -> dict:
-    incidents = [snap.to_dict() for snap in db.collection("incidents").limit(500).stream()]
-    remediations = [snap.to_dict() for snap in db.collection("remediations").limit(1000).stream()]
+    incidents = [snap.to_dict() for snap in _recent(db, "incidents", "started_at", 500).stream()]
+    remediations = [snap.to_dict() for snap in _recent(db, "remediations", "created_at", 1000).stream()]
     resolved = [i for i in incidents if i["status"] == "resolved"]
 
     category_counts: dict[str, int] = {}
@@ -110,7 +118,7 @@ def compute_analytics(db: firestore.Client) -> dict:
 
 
 def compute_safety_stats(db: firestore.Client) -> dict:
-    remediations = [snap.to_dict() for snap in db.collection("remediations").limit(1000).stream()]
+    remediations = [snap.to_dict() for snap in _recent(db, "remediations", "created_at", 1000).stream()]
 
     auto_executed = sum(1 for r in remediations if r["risk"] == "low")
     approved = sum(

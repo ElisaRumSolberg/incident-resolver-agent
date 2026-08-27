@@ -111,7 +111,12 @@ def list_remediations_for_service(
     """Used by the safety policy engine for rate limiting and by analytics
     for per-action success rates. Filtered in Python for the same reason as
     list_incidents — avoids a manual composite index at this data volume."""
-    snaps = db.collection("remediations").limit(limit).stream()
+    snaps = (
+        db.collection("remediations")
+        .order_by("created_at", direction=firestore.Query.DESCENDING)
+        .limit(limit)
+        .stream()
+    )
     records = [RemediationRecord(**snap.to_dict()) for snap in snaps]
     records = [r for r in records if r.service_id == service_id]
     if action:

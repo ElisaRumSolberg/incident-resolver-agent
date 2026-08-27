@@ -32,7 +32,7 @@ def test_find_similar_incidents_ranks_by_overlap_and_service(monkeypatch):
     ]
 
     db = MagicMock()
-    db.collection.return_value.limit.return_value.stream.return_value = past
+    db.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = past
 
     results = find_similar_incidents(
         db,
@@ -63,7 +63,7 @@ def test_find_similar_incidents_excludes_self_and_low_scores():
         ),
     ]
     db = MagicMock()
-    db.collection.return_value.limit.return_value.stream.return_value = past
+    db.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = past
 
     results = find_similar_incidents(db, root_cause="missing env var issue", service_id="x", exclude_incident_id="current")
     assert results == []
@@ -82,7 +82,7 @@ def test_find_similar_incidents_includes_escalated_ones_marked_failed():
         ),
     ]
     db = MagicMock()
-    db.collection.return_value.limit.return_value.stream.return_value = past
+    db.collection.return_value.order_by.return_value.limit.return_value.stream.return_value = past
 
     results = find_similar_incidents(
         db, root_cause="Database connection pool exhausted", service_id="payment-api", exclude_incident_id="current"

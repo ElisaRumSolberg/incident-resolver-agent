@@ -60,10 +60,24 @@ def find_similar_incidents(
     a success, and is what lets the agent (via attempted/rejected_actions)
     and a human reviewing this panel avoid repeating a known-bad fix."""
     current_words = _tokenize(root_cause)
+    if not current_words:
+        # No comparable words at all (e.g. too short or empty) — the
+        # same-service bonus alone used to be enough to clear
+        # min_similarity, mislabeling an unrelated past incident as
+        # "similar" with zero actual textual basis.
+        return []
+
     # Fetched broad and filtered in Python (see list_incidents for why) —
     # a resolved/escalated status alongside an unrelated order/limit would
-    # otherwise need a manual composite index at larger data volumes.
-    candidates = db.collection("incidents").limit(300).stream()
+    # otherwise need a manual composite index at larger data volumes. Ordered
+    # by recency before truncating so, once past the limit, the search still
+    # looks at the most recent incidents rather than an arbitrary subset.
+    candidates = (
+        db.collection("incidents")
+        .order_by("started_at", direction=firestore.Query.DESCENDING)
+        .limit(300)
+        .stream()
+    )
 
     scored = []
     for snap in candidates:
