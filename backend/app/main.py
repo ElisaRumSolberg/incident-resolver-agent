@@ -15,6 +15,16 @@ from app.incidents_store import (
     list_incidents,
     list_remediations_for_incident,
     new_incident,
+    update_incident,
+)
+from app.models import ServiceProfile
+from app.settings_store import (
+    get_global_settings,
+    get_service_profile,
+    list_service_profiles,
+    set_autonomy_mode,
+    set_kill_switch,
+    upsert_service_profile,
 )
 
 app = FastAPI(title="Autonomous Incident Resolver Agent")
@@ -86,8 +96,62 @@ async def start_incident(payload: dict | None = None):
         return {"status": "healthy", "message": "Service is healthy, no incident created."}
 
     incident = new_incident(db, service_id)
+    update_incident(db, incident.id, autonomy_mode=get_global_settings(db).autonomy_mode)
+    incident = get_incident(db, incident.id)
     await orchestrator.investigate(db, incident)
     return _incident_response(db, incident.id)
+
+
+@app.get("/settings")
+def get_settings():
+    db = get_firestore_client()
+    return get_global_settings(db).model_dump()
+
+
+@app.put("/settings/autonomy-mode")
+def put_autonomy_mode(payload: dict):
+    mode = payload.get("mode")
+    changed_by = payload.get("changed_by", "dashboard user")
+    if mode not in ("observe_only", "recommend_only", "approval_required", "autonomous_low_risk"):
+        raise HTTPException(400, f"Unknown autonomy mode: {mode}")
+    db = get_firestore_client()
+    return set_autonomy_mode(db, mode, changed_by).model_dump()
+
+
+@app.put("/settings/kill-switch")
+def put_kill_switch(payload: dict):
+    enabled = payload.get("enabled")
+    changed_by = payload.get("changed_by", "dashboard user")
+    if not isinstance(enabled, bool):
+        raise HTTPException(400, "'enabled' must be a boolean.")
+    db = get_firestore_client()
+    return set_kill_switch(db, enabled, changed_by).model_dump()
+
+
+@app.get("/services")
+def get_services():
+    db = get_firestore_client()
+    return {"services": [p.model_dump() for p in list_service_profiles(db)]}
+
+
+@app.get("/services/{service_id}")
+def get_service(service_id: str):
+    db = get_firestore_client()
+    profile = get_service_profile(db, service_id)
+    if profile is None:
+        return ServiceProfile(service_id=service_id).model_dump()
+    return profile.model_dump()
+
+
+@app.put("/services/{service_id}")
+def put_service(service_id: str, payload: dict):
+    payload["service_id"] = service_id
+    try:
+        profile = ServiceProfile(**payload)
+    except Exception as exc:
+        raise HTTPException(400, str(exc)) from exc
+    db = get_firestore_client()
+    return upsert_service_profile(db, profile).model_dump()
 
 
 @app.get("/incidents")
@@ -146,20 +210,22 @@ def get_incident_events(incident_id: str):
 
 
 @app.post("/incidents/{incident_id}/remediations/{remediation_id}/approve")
-async def approve(incident_id: str, remediation_id: str):
+async def approve(incident_id: str, remediation_id: str, payload: dict | None = None):
+    approved_by = (payload or {}).get("approved_by", "dashboard user")
     db = get_firestore_client()
     try:
-        await orchestrator.approve_remediation(db, incident_id, remediation_id)
+        await orchestrator.approve_remediation(db, incident_id, remediation_id, approved_by=approved_by)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return _incident_response(db, incident_id)
 
 
 @app.post("/incidents/{incident_id}/remediations/{remediation_id}/reject")
-async def reject(incident_id: str, remediation_id: str):
+async def reject(incident_id: str, remediation_id: str, payload: dict | None = None):
+    rejected_by = (payload or {}).get("rejected_by", "dashboard user")
     db = get_firestore_client()
     try:
-        await orchestrator.reject_remediation(db, incident_id, remediation_id)
+        await orchestrator.reject_remediation(db, incident_id, remediation_id, rejected_by=rejected_by)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
     return _incident_response(db, incident_id)

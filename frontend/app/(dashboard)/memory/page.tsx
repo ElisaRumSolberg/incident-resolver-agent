@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getAnalytics, getOverview } from "@/lib/api";
 import type { AnalyticsData, OverviewStats } from "@/lib/types";
-import { Card, EmptyState, ProgressBar, SectionLabel } from "../components/ui";
+import { Card, EmptyState, ProgressBar, SectionLabel } from "@/app/components/ui";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Configuration errors": "var(--color-warning)",

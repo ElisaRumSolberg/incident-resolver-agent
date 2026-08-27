@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listPostmortems } from "@/lib/api";
 import type { Postmortem } from "@/lib/types";
-import { Card, EmptyState } from "../components/ui";
+import { Card, EmptyState } from "@/app/components/ui";
 
 function formatSeconds(s: number | null): string {
   if (s === null) return "—";

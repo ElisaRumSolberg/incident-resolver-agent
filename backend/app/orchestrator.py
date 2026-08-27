@@ -3,16 +3,20 @@
 This module owns all state transitions. The ADK agent (app.agent.adk_agent)
 only produces a diagnosis + proposed action; every decision about whether
 that action is safe to run, whether it needs approval, and what to do if
-it fails is made here deterministically against the safety whitelist.
+it fails is made by the Safety Policy Engine (app.agent.policy), which
+combines the flat action whitelist with autonomy mode, the kill switch,
+per-service risk profiles, and execution rate limits. Nothing here ever
+trusts the LLM's own opinion of an action's risk.
 """
 
+import uuid
 from datetime import datetime, timezone
 
 from google.cloud import firestore
 
 from app.agent.activity_log import log_event
 from app.agent.adk_agent import run_diagnosis
-from app.agent.safety import is_auto_executable, risk_for_action
+from app.agent.policy import evaluate_policy
 from app.agent.similarity import find_similar_incidents
 from app.agent.tools import apply_safe_remediation, verify_recovery
 from app.incidents_store import (
@@ -29,11 +33,11 @@ MAX_ATTEMPTS = 3
 
 async def investigate(db: firestore.Client, incident: Incident) -> tuple[Incident, RemediationRecord]:
     log_event(db, incident.id, "investigation_started", f"Investigating incident on {incident.service_id}.")
-    # Avoid repeating both actions that were actually tried and failed, and
-    # actions a human already rejected — but the two are tracked separately
-    # (see reject_remediation) so a rejection doesn't masquerade as a failed
-    # attempt when the incident later escalates.
-    proposal = await run_diagnosis(incident.service_id, incident.attempted_actions + incident.rejected_actions)
+    proposal, tool_calls = await run_diagnosis(
+        incident.service_id, incident.attempted_actions + incident.rejected_actions
+    )
+    for tool_name in tool_calls:
+        log_event(db, incident.id, "tool_used", f"Agent called {tool_name}.")
     log_event(
         db,
         incident.id,
@@ -41,7 +45,9 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
         f"Root cause: {proposal.root_cause} (confidence {proposal.confidence:.0%}). "
         f"Proposed action: {proposal.action}.",
     )
+    log_event(db, incident.id, "tool_used", "Agent called search_incident_memory.")
     similar = find_similar_incidents(db, proposal.root_cause, incident.service_id, incident.id)
+    all_tools_used = incident.tools_used + tool_calls + ["search_incident_memory"]
     update_incident(
         db,
         incident.id,
@@ -51,6 +57,7 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
         severity=proposal.severity,
         next_action=proposal.action,
         similar_incidents=similar,
+        tools_used=all_tools_used,
     )
     if similar:
         top = similar[0]
@@ -61,43 +68,74 @@ async def investigate(db: firestore.Client, incident: Incident) -> tuple[Inciden
             f"Similar incident found: {top['similarity']:.0%} match with "
             f"{top['incident_id'][:8]} (fixed with {top['action']}).",
         )
-    risk = risk_for_action(proposal.action)
 
-    if risk is None:
-        remediation = new_remediation(
-            db, incident.id, proposal.action, risk="high", status="blocked", reason=proposal.reason
-        )
+    log_event(db, incident.id, "tool_used", "Safety Engine called evaluate_safety_policy.", actor="safety_engine")
+    evaluation = evaluate_policy(db, incident.service_id, proposal.action)
+    update_incident(db, incident.id, tools_used=all_tools_used + ["evaluate_safety_policy"])
+    log_event(
+        db,
+        incident.id,
+        "safety_evaluated",
+        f"Policy decision: {evaluation.decision} ({evaluation.reason}).",
+        actor="safety_engine",
+    )
+    remediation = new_remediation(
+        db,
+        incident.id,
+        proposal.action,
+        risk=evaluation.risk or "high",
+        status="proposed",  # overwritten just below per decision
+        reason=proposal.reason,
+        service_id=incident.service_id,
+        policy_decision=evaluation.decision,
+        policy_version=evaluation.policy_version,
+        policy_reason=evaluation.reason,
+    )
+
+    if evaluation.decision == "blocked":
+        update_remediation(db, remediation.id, status="blocked")
         update_incident(db, incident.id, status="escalation_required")
         log_event(
             db,
             incident.id,
             "escalation",
-            f"Proposed action '{proposal.action}' is not a whitelisted safe action. Escalating to a human.",
+            f"'{proposal.action}' is blocked by policy. Escalating to a human.",
+            actor="safety_engine",
         )
-        return get_incident(db, incident.id), remediation
+        return get_incident(db, incident.id), get_remediation(db, remediation.id)
 
-    if is_auto_executable(risk):
-        remediation = new_remediation(
-            db, incident.id, proposal.action, risk=risk, status="approved", reason=proposal.reason
+    if evaluation.decision == "recommend_only":
+        update_incident(db, incident.id, status="recommended")
+        log_event(
+            db,
+            incident.id,
+            "recommended",
+            f"'{proposal.action}' recommended but not executed (autonomy mode does not allow execution).",
+            actor="safety_engine",
         )
+        return get_incident(db, incident.id), get_remediation(db, remediation.id)
+
+    if evaluation.decision == "auto_execute":
+        update_remediation(db, remediation.id, status="approved", executed_by="agent")
         log_event(
             db, incident.id, "auto_approved", f"'{proposal.action}' is LOW risk — executing automatically."
         )
-        return await _apply_and_verify(db, incident, remediation)
+        return await _apply_and_verify(db, get_incident(db, incident.id), get_remediation(db, remediation.id))
 
-    remediation = new_remediation(
-        db, incident.id, proposal.action, risk=risk, status="awaiting_approval", reason=proposal.reason
-    )
+    # requires_approval
+    update_remediation(db, remediation.id, status="awaiting_approval")
     update_incident(db, incident.id, status="awaiting_approval")
     log_event(
-        db, incident.id, "awaiting_approval", f"'{proposal.action}' is MEDIUM risk — waiting for human approval."
+        db, incident.id, "awaiting_approval", f"'{proposal.action}' requires human approval before it can run."
     )
-    return get_incident(db, incident.id), remediation
+    return get_incident(db, incident.id), get_remediation(db, remediation.id)
 
 
 async def _apply_and_verify(
     db: firestore.Client, incident: Incident, remediation: RemediationRecord
 ) -> tuple[Incident, RemediationRecord]:
+    execution_id = str(uuid.uuid4())
+    update_remediation(db, remediation.id, execution_id=execution_id)
     update_incident(db, incident.id, status="remediating")
     log_event(db, incident.id, "remediation_applying", f"Applying '{remediation.action}'.")
 
@@ -126,8 +164,10 @@ async def _apply_and_verify(
     update_remediation(db, remediation.id, status="applied")
 
     update_incident(db, incident.id, status="verifying")
+    log_event(db, incident.id, "tool_used", "Agent called verify_recovery.")
     log_event(db, incident.id, "verifying", "Re-checking service health.")
     health = verify_recovery(incident.service_id)
+    update_incident(db, incident.id, tools_used=incident.tools_used + ["verify_recovery"])
 
     if health.status == "healthy":
         update_remediation(db, remediation.id, status="verified", verified=True)
@@ -171,7 +211,7 @@ async def _handle_failed_attempt(
 
 
 async def approve_remediation(
-    db: firestore.Client, incident_id: str, remediation_id: str
+    db: firestore.Client, incident_id: str, remediation_id: str, approved_by: str = "dashboard user"
 ) -> tuple[Incident, RemediationRecord]:
     incident = get_incident(db, incident_id)
     remediation = get_remediation(db, remediation_id)
@@ -180,14 +220,21 @@ async def approve_remediation(
     if remediation.status != "awaiting_approval":
         raise ValueError("Remediation is not awaiting approval.")
 
-    update_remediation(db, remediation.id, status="approved")
-    log_event(db, incident.id, "approved", f"Human approved '{remediation.action}'.")
+    update_remediation(
+        db,
+        remediation.id,
+        status="approved",
+        approved_by=approved_by,
+        approved_at=datetime.now(timezone.utc).isoformat(),
+        executed_by="human",
+    )
+    log_event(db, incident.id, "approved", f"{approved_by} approved '{remediation.action}'.", actor="human")
     remediation = get_remediation(db, remediation_id)
     return await _apply_and_verify(db, incident, remediation)
 
 
 async def reject_remediation(
-    db: firestore.Client, incident_id: str, remediation_id: str
+    db: firestore.Client, incident_id: str, remediation_id: str, rejected_by: str = "dashboard user"
 ) -> tuple[Incident, RemediationRecord]:
     incident = get_incident(db, incident_id)
     remediation = get_remediation(db, remediation_id)
@@ -196,8 +243,10 @@ async def reject_remediation(
     if remediation.status != "awaiting_approval":
         raise ValueError("Remediation is not awaiting approval.")
 
-    update_remediation(db, remediation.id, status="rejected")
-    log_event(db, incident.id, "rejected", f"Human rejected '{remediation.action}'. Re-planning.")
+    update_remediation(db, remediation.id, status="rejected", approved_by=rejected_by)
+    log_event(
+        db, incident.id, "rejected", f"{rejected_by} rejected '{remediation.action}'. Re-planning.", actor="human"
+    )
     # Rejections are tracked separately from attempted_actions — a human
     # declining a proposal is not the same claim as "this was tried and
     # failed," and must not silently count toward the failed-attempt

@@ -2,6 +2,7 @@ export type Risk = "low" | "medium" | "high";
 
 export type IncidentStatus =
   | "investigating"
+  | "recommended"
   | "awaiting_approval"
   | "remediating"
   | "verifying"
@@ -19,12 +20,19 @@ export type RemediationStatus =
   | "failed"
   | "blocked";
 
+export type AutonomyMode = "observe_only" | "recommend_only" | "approval_required" | "autonomous_low_risk";
+export type PolicyDecision = "auto_execute" | "requires_approval" | "blocked" | "recommend_only";
+export type Actor = "agent" | "human" | "safety_engine" | "monitoring_system";
+export type Criticality = "low" | "medium" | "high" | "critical";
+export type Environment = "development" | "staging" | "production";
+
 export interface SimilarIncident {
   incident_id: string;
   service_id: string;
   root_cause: string;
   action: string | null;
   result: string;
+  recovery_seconds?: number | null;
   similarity: number;
 }
 
@@ -42,6 +50,8 @@ export interface Incident {
   attempted_actions: string[];
   rejected_actions: string[];
   similar_incidents: SimilarIncident[];
+  autonomy_mode: AutonomyMode | null;
+  tools_used: string[];
 }
 
 export interface OverviewStats {
@@ -89,17 +99,27 @@ export interface Postmortem {
 export interface Remediation {
   id: string;
   incident_id: string;
+  service_id: string | null;
   action: string;
   risk: Risk;
   status: RemediationStatus;
   reason: string | null;
   verified: boolean;
+  created_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  executed_by: Actor | null;
+  execution_id: string | null;
+  policy_decision: PolicyDecision | null;
+  policy_version: string | null;
+  policy_reason: string | null;
 }
 
 export interface IncidentEvent {
   type: string;
   message: string;
   created_at: string;
+  actor?: Actor;
 }
 
 export interface IncidentResponse {
@@ -117,4 +137,23 @@ export type StartIncidentResponse = IncidentResponse | HealthySnapshot;
 
 export function isHealthySnapshot(r: StartIncidentResponse): r is HealthySnapshot {
   return (r as HealthySnapshot).status === "healthy" && !("incident" in r);
+}
+
+export interface GlobalSettings {
+  autonomy_mode: AutonomyMode;
+  autonomy_mode_changed_at: string | null;
+  autonomy_mode_changed_by: string | null;
+  kill_switch_enabled: boolean;
+  kill_switch_changed_at: string | null;
+  kill_switch_changed_by: string | null;
+}
+
+export interface ServiceProfile {
+  service_id: string;
+  criticality: Criticality;
+  environment: Environment;
+  autonomy_level: AutonomyMode;
+  allowed_automatic_actions: string[];
+  actions_requiring_approval: string[];
+  action_risk_overrides: Record<string, Risk>;
 }

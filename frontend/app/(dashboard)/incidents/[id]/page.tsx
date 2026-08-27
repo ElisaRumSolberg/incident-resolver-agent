@@ -5,16 +5,19 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   approveRemediation,
+  getAnalytics,
   getIncident,
   getPostmortem,
   rejectRemediation,
 } from "@/lib/api";
-import type { IncidentResponse, Postmortem } from "@/lib/types";
-import { ActivityTimeline } from "../../components/ActivityTimeline";
-import { IncidentOverview } from "../../components/IncidentOverview";
-import { RemediationPanel } from "../../components/RemediationPanel";
-import { SimilarIncidents } from "../../components/SimilarIncidents";
-import { Card, EmptyState, SectionLabel } from "../../components/ui";
+import type { AnalyticsData, IncidentResponse, Postmortem } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
+import { ActivityTimeline } from "@/app/components/ActivityTimeline";
+import { EvidencePanel } from "@/app/components/EvidencePanel";
+import { IncidentOverview } from "@/app/components/IncidentOverview";
+import { RemediationPanel } from "@/app/components/RemediationPanel";
+import { SimilarIncidents } from "@/app/components/SimilarIncidents";
+import { Card, EmptyState, SectionLabel } from "@/app/components/ui";
 
 export default function IncidentDetailPage() {
   const params = useParams<{ id: string }>();
@@ -26,6 +29,13 @@ export default function IncidentDetailPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const { user } = useAuth();
+  const actorName = user?.displayName || user?.email || "dashboard user";
+
+  useEffect(() => {
+    getAnalytics().then(setAnalytics);
+  }, []);
 
   function refresh() {
     setLoading(true);
@@ -48,7 +58,7 @@ export default function IncidentDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      setData(await approveRemediation(incidentId, remediationId));
+      setData(await approveRemediation(incidentId, remediationId, actorName));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -60,7 +70,7 @@ export default function IncidentDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      setData(await rejectRemediation(incidentId, remediationId));
+      setData(await rejectRemediation(incidentId, remediationId, actorName));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -130,6 +140,12 @@ export default function IncidentDetailPage() {
             busy={busy}
           />
         )}
+
+        <EvidencePanel
+          incident={data.incident}
+          remediation={latestRemediation}
+          successRate={analytics?.remediation_success_rate.find((r) => r.action === latestRemediation?.action)}
+        />
 
         <SimilarIncidents items={data.incident.similar_incidents} />
 

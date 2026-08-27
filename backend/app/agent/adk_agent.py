@@ -38,12 +38,18 @@ class AgentPipelineError(RuntimeError):
 @dataclass
 class _PipelineState:
     proposal: RemediationProposal | None = None
+    tool_calls: list[str] = None  # type: ignore[assignment]
+
+    def __post_init__(self):
+        if self.tool_calls is None:
+            self.tool_calls = []
 
 
-def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
+def _build_tools(service_id: str, attempted_actions: list[str], state: _PipelineState) -> list[FunctionTool]:
     def read_recent_logs_tool(limit: int = 50) -> dict:
         """Reads recent log entries from the service. Returns a list of
         {timestamp, level, message} entries, most recent last."""
+        state.tool_calls.append("read_recent_logs")
         logs = read_recent_logs(service_id, limit=limit)
         state.__dict__["_logs"] = logs
         return {"logs": [log.model_dump() for log in logs]}
@@ -52,6 +58,7 @@ def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
         """Groups the logs already read via read_recent_logs_tool into
         recurring error/warning patterns with counts and confidence.
         Call read_recent_logs_tool first."""
+        state.tool_calls.append("extract_error_patterns")
         logs = state.__dict__.get("_logs")
         if not logs:
             return {"error": "call read_recent_logs_tool first"}
@@ -61,6 +68,7 @@ def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
     def inspect_service_config_tool() -> dict:
         """Returns safe, non-secret configuration metadata for the service
         (e.g. whether required config values are set, current revision)."""
+        state.tool_calls.append("inspect_service_config")
         snapshot = inspect_service_config(service_id)
         return snapshot.model_dump()
 
@@ -84,6 +92,16 @@ def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
                 "error": f"'{action}' is not a known action. Choose one of: "
                 f"{', '.join(sorted(VALID_ACTIONS))}"
             }
+        if action in attempted_actions:
+            # Code-enforced, not just a prompt instruction: a failed action
+            # cannot be silently re-proposed just because the model ignored
+            # the "don't repeat this" guidance in the prompt.
+            remaining = sorted(VALID_ACTIONS - set(attempted_actions))
+            return {
+                "error": f"'{action}' was already tried for this incident and did not resolve it. "
+                f"Propose a different action. Remaining untried options: {', '.join(remaining) or '(none)'}"
+            }
+        state.tool_calls.append("propose_remediation")
         state.proposal = RemediationProposal(
             root_cause=root_cause,
             confidence=confidence,
@@ -101,13 +119,13 @@ def _build_tools(service_id: str, state: _PipelineState) -> list[FunctionTool]:
     ]
 
 
-async def _run_once(service_id: str, attempted_actions: list[str]) -> RemediationProposal:
+async def _run_once(service_id: str, attempted_actions: list[str]) -> tuple[RemediationProposal, list[str]]:
     state = _PipelineState()
     agent = LlmAgent(
         name="incident_resolver_agent",
         model=settings.gemini_model,
         instruction=AGENT_INSTRUCTION + previous_attempts_context(attempted_actions),
-        tools=_build_tools(service_id, state),
+        tools=_build_tools(service_id, attempted_actions, state),
     )
     runner = InMemoryRunner(agent=agent, app_name="incident_resolver_agent")
     session = await runner.session_service.create_session(
@@ -128,11 +146,15 @@ async def _run_once(service_id: str, attempted_actions: list[str]) -> Remediatio
     if state.proposal is None:
         raise AgentPipelineError("Agent did not complete the diagnosis/propose_remediation sequence.")
 
-    return state.proposal
+    return state.proposal, state.tool_calls
 
 
-async def run_diagnosis(service_id: str, attempted_actions: list[str] | None = None) -> RemediationProposal:
-    """Runs the diagnosis agent once, retrying once on failure."""
+async def run_diagnosis(
+    service_id: str, attempted_actions: list[str] | None = None
+) -> tuple[RemediationProposal, list[str]]:
+    """Runs the diagnosis agent once, retrying once on failure. Returns the
+    proposal plus the ordered list of tool names the agent actually called,
+    for the evidence/audit trail."""
     attempted = attempted_actions or []
     try:
         return await _run_once(service_id, attempted)

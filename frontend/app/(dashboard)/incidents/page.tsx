@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { listIncidents, resetDemo, startInvestigation, triggerDemoScenario } from "@/lib/api";
 import { isHealthySnapshot, type Incident } from "@/lib/types";
-import { SeverityLabel, StatusBadge } from "../components/Badges";
-import { ScenarioTrigger } from "../components/ScenarioTrigger";
-import { Card, EmptyState, SectionLabel } from "../components/ui";
+import { SeverityLabel, StatusBadge } from "@/app/components/Badges";
+import { ScenarioTrigger } from "@/app/components/ScenarioTrigger";
+import { Card, EmptyState, SectionLabel } from "@/app/components/ui";
 
 const ACTIVE_STATUSES = new Set(["investigating", "awaiting_approval", "remediating", "verifying"]);
 

@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 Risk = Literal["low", "medium", "high"]
 IncidentStatus = Literal[
     "investigating",
+    "recommended",  # observe_only / recommend_only modes: diagnosed, never executed
     "awaiting_approval",
     "remediating",
     "verifying",
@@ -13,7 +14,7 @@ IncidentStatus = Literal[
     "failed",
 ]
 RemediationStatus = Literal[
-    "proposed",
+    "proposed",  # recommend-only: surfaced but will never be executed
     "awaiting_approval",
     "approved",
     "rejected",
@@ -22,6 +23,13 @@ RemediationStatus = Literal[
     "failed",
     "blocked",
 ]
+AutonomyMode = Literal["observe_only", "recommend_only", "approval_required", "autonomous_low_risk"]
+PolicyDecision = Literal["auto_execute", "requires_approval", "blocked", "recommend_only"]
+Actor = Literal["agent", "human", "safety_engine", "monitoring_system"]
+Criticality = Literal["low", "medium", "high", "critical"]
+Environment = Literal["development", "staging", "production"]
+
+POLICY_VERSION = "v2"
 
 
 class HealthResult(BaseModel):
@@ -72,6 +80,8 @@ class Incident(BaseModel):
     attempted_actions: list[str] = Field(default_factory=list)
     rejected_actions: list[str] = Field(default_factory=list)
     similar_incidents: list[dict] = Field(default_factory=list)
+    autonomy_mode: Optional[AutonomyMode] = None  # the mode active when this incident was opened
+    tools_used: list[str] = Field(default_factory=list)
 
 
 class IncidentEvent(BaseModel):
@@ -80,13 +90,52 @@ class IncidentEvent(BaseModel):
     type: str
     message: str
     created_at: str
+    actor: Actor = "agent"
 
 
 class RemediationRecord(BaseModel):
     id: str
     incident_id: str
+    service_id: Optional[str] = None
     action: str
     risk: Risk
     status: RemediationStatus
     reason: Optional[str] = None
     verified: bool = False
+    created_at: Optional[str] = None
+    # Audit trail
+    approved_by: Optional[str] = None
+    approved_at: Optional[str] = None
+    executed_by: Optional[Actor] = None
+    execution_id: Optional[str] = None
+    policy_decision: Optional[PolicyDecision] = None
+    policy_version: Optional[str] = None
+    policy_reason: Optional[str] = None
+
+
+class PolicyEvaluation(BaseModel):
+    """The Safety Policy Engine's full verdict for one proposed action."""
+
+    decision: PolicyDecision
+    risk: Optional[Risk]
+    reason: str
+    policy_version: str = POLICY_VERSION
+
+
+class GlobalSettings(BaseModel):
+    autonomy_mode: AutonomyMode = "autonomous_low_risk"
+    autonomy_mode_changed_at: Optional[str] = None
+    autonomy_mode_changed_by: Optional[str] = None
+    kill_switch_enabled: bool = False
+    kill_switch_changed_at: Optional[str] = None
+    kill_switch_changed_by: Optional[str] = None
+
+
+class ServiceProfile(BaseModel):
+    service_id: str
+    criticality: Criticality = "medium"
+    environment: Environment = "production"
+    autonomy_level: AutonomyMode = "autonomous_low_risk"
+    allowed_automatic_actions: list[str] = Field(default_factory=list)
+    actions_requiring_approval: list[str] = Field(default_factory=list)
+    action_risk_overrides: dict[str, Risk] = Field(default_factory=dict)

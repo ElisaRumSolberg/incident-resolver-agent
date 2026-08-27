@@ -77,18 +77,46 @@ def list_incidents(
 
 
 def new_remediation(
-    db: firestore.Client, incident_id: str, action: str, risk: str, status: str, reason: str | None
+    db: firestore.Client,
+    incident_id: str,
+    action: str,
+    risk: str,
+    status: str,
+    reason: str | None,
+    service_id: str | None = None,
+    policy_decision: str | None = None,
+    policy_version: str | None = None,
+    policy_reason: str | None = None,
 ) -> RemediationRecord:
     record = RemediationRecord(
         id=str(uuid.uuid4()),
         incident_id=incident_id,
+        service_id=service_id,
         action=action,
         risk=risk,  # type: ignore[arg-type]
         status=status,  # type: ignore[arg-type]
         reason=reason,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        policy_decision=policy_decision,  # type: ignore[arg-type]
+        policy_version=policy_version,
+        policy_reason=policy_reason,
     )
     db.collection("remediations").document(record.id).set(record.model_dump())
     return record
+
+
+def list_remediations_for_service(
+    db: firestore.Client, service_id: str, action: str | None = None, limit: int = 500
+) -> list[RemediationRecord]:
+    """Used by the safety policy engine for rate limiting and by analytics
+    for per-action success rates. Filtered in Python for the same reason as
+    list_incidents — avoids a manual composite index at this data volume."""
+    snaps = db.collection("remediations").limit(limit).stream()
+    records = [RemediationRecord(**snap.to_dict()) for snap in snaps]
+    records = [r for r in records if r.service_id == service_id]
+    if action:
+        records = [r for r in records if r.action == action]
+    return records
 
 
 def get_remediation(db: firestore.Client, remediation_id: str) -> RemediationRecord | None:

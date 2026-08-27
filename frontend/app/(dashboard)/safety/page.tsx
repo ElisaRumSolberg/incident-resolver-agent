@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { getSafetyStats } from "@/lib/api";
 import type { SafetyStats } from "@/lib/types";
-import { Card, EmptyState, SectionLabel } from "../components/ui";
+import { AutonomyControls } from "@/app/components/AutonomyControls";
+import { Card, EmptyState, SectionLabel } from "@/app/components/ui";
 
 function StatBlock({
   label,
@@ -46,6 +47,8 @@ export default function SafetyPage() {
           Every remediation decision, and why it was auto-executed, approved, or blocked.
         </p>
       </header>
+
+      <AutonomyControls />
 
       {loading && <EmptyState>Loading...</EmptyState>}
 

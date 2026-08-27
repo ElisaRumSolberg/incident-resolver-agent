@@ -17,6 +17,7 @@ export function RemediationPanel({
 }) {
   const needsApproval = remediation.status === "awaiting_approval";
   const blocked = remediation.status === "blocked";
+  const recommendOnly = remediation.status === "proposed";
 
   return (
     <Card>
@@ -34,6 +35,13 @@ export function RemediationPanel({
         <p className="mt-4 rounded-lg border border-[var(--color-blocked)]/30 bg-[var(--color-blocked)]/10 p-3 text-sm text-[var(--color-blocked)]">
           This action is not on the safe-remediation whitelist and will never be auto-executed.
           A human needs to handle this manually.
+        </p>
+      )}
+
+      {recommendOnly && (
+        <p className="mt-4 rounded-lg border border-[var(--color-primary)]/30 bg-[var(--color-primary)]/10 p-3 text-sm text-[var(--color-primary)]">
+          The current autonomy mode never executes actions — this is a recommendation only. A human
+          must act on it manually.
         </p>
       )}
 
@@ -57,10 +65,26 @@ export function RemediationPanel({
         </div>
       )}
 
-      {!needsApproval && !blocked && (
-        <div className="mt-3 text-xs text-[var(--color-text-muted)]">
-          Status: <span className="font-medium text-[var(--color-text-secondary)]">{remediation.status}</span>
-          {remediation.verified && " — verified healthy"}
+      {!needsApproval && !blocked && !recommendOnly && (
+        <div className="mt-3 space-y-1 text-xs text-[var(--color-text-muted)]">
+          <div>
+            Status: <span className="font-medium text-[var(--color-text-secondary)]">{remediation.status}</span>
+            {remediation.verified && " — verified healthy"}
+          </div>
+          {remediation.approved_by && (
+            <div>
+              Approved by <span className="text-[var(--color-text-secondary)]">{remediation.approved_by}</span>
+              {remediation.approved_at && ` at ${new Date(remediation.approved_at).toLocaleString()}`}
+            </div>
+          )}
+          {remediation.executed_by && (
+            <div>
+              Executed by <span className="text-[var(--color-text-secondary)]">{remediation.executed_by}</span>
+              {remediation.execution_id && (
+                <span className="font-mono"> · execution {remediation.execution_id.slice(0, 8)}</span>
+              )}
+            </div>
+          )}
         </div>
       )}
     </Card>

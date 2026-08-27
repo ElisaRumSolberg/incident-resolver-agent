@@ -1,9 +1,11 @@
 import type {
   AnalyticsData,
+  GlobalSettings,
   IncidentResponse,
   OverviewStats,
   Postmortem,
   SafetyStats,
+  ServiceProfile,
   StartIncidentResponse,
 } from "./types";
 
@@ -71,16 +73,49 @@ export function listPostmortems() {
   return request<{ postmortems: Postmortem[] }>("/postmortems");
 }
 
-export function approveRemediation(incidentId: string, remediationId: string) {
+export function approveRemediation(incidentId: string, remediationId: string, approvedBy = "dashboard user") {
   return request<IncidentResponse>(
     `/incidents/${incidentId}/remediations/${remediationId}/approve`,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify({ approved_by: approvedBy }) }
   );
 }
 
-export function rejectRemediation(incidentId: string, remediationId: string) {
+export function rejectRemediation(incidentId: string, remediationId: string, rejectedBy = "dashboard user") {
   return request<IncidentResponse>(
     `/incidents/${incidentId}/remediations/${remediationId}/reject`,
-    { method: "POST" }
+    { method: "POST", body: JSON.stringify({ rejected_by: rejectedBy }) }
   );
+}
+
+export function getSettings() {
+  return request<GlobalSettings>("/settings");
+}
+
+export function setAutonomyMode(mode: string, changedBy = "dashboard user") {
+  return request<GlobalSettings>("/settings/autonomy-mode", {
+    method: "PUT",
+    body: JSON.stringify({ mode, changed_by: changedBy }),
+  });
+}
+
+export function setKillSwitch(enabled: boolean, changedBy = "dashboard user") {
+  return request<GlobalSettings>("/settings/kill-switch", {
+    method: "PUT",
+    body: JSON.stringify({ enabled, changed_by: changedBy }),
+  });
+}
+
+export function listServices() {
+  return request<{ services: ServiceProfile[] }>("/services");
+}
+
+export function getService(serviceId: string) {
+  return request<ServiceProfile>(`/services/${serviceId}`);
+}
+
+export function putService(serviceId: string, profile: Partial<ServiceProfile>) {
+  return request<ServiceProfile>(`/services/${serviceId}`, {
+    method: "PUT",
+    body: JSON.stringify(profile),
+  });
 }

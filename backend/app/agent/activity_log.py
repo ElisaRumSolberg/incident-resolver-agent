@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
 
-def log_event(db, incident_id: str, event_type: str, message: str) -> None:
+def log_event(db, incident_id: str, event_type: str, message: str, actor: str = "agent") -> None:
     """Append one entry to the incident's activity timeline. Best-effort:
     Firestore writes are reliable enough here that callers don't need to
     wrap this in try/except."""
@@ -10,6 +10,7 @@ def log_event(db, incident_id: str, event_type: str, message: str) -> None:
             "type": event_type,
             "message": message,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "actor": actor,
         }
     )
 

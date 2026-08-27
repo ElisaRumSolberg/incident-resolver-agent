@@ -2,6 +2,7 @@ import type { IncidentStatus, Risk } from "@/lib/types";
 
 const STATUS_COLOR: Record<IncidentStatus, string> = {
   investigating: "var(--color-primary)",
+  recommended: "var(--color-primary)",
   awaiting_approval: "var(--color-warning)",
   remediating: "var(--color-accent)",
   verifying: "var(--color-accent)",

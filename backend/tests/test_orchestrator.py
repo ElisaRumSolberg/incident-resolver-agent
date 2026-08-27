@@ -16,6 +16,7 @@ import pytest
 from app import orchestrator
 from app.incidents_store import new_incident
 from app.models import HealthResult, RemediationProposal
+from app.settings_store import set_autonomy_mode, set_kill_switch
 from tests.fake_firestore import FakeFirestoreClient
 
 
@@ -35,10 +36,11 @@ def _healthy() -> HealthResult:
 
 
 def _diagnose_fixed(action: str):
-    """run_diagnosis is `async def` — the fake must be awaitable too."""
+    """run_diagnosis is `async def` and now returns (proposal, tool_calls) —
+    the fake must match both."""
 
     async def fake(service_id, attempted_actions):
-        return _proposal(action)
+        return _proposal(action), ["read_recent_logs", "inspect_service_config"]
 
     return fake
 
@@ -161,7 +163,7 @@ async def test_failed_verification_triggers_replan_with_a_different_action(db, m
         action = proposals[calls["n"]]
         calls["n"] += 1
         assert action not in attempted_actions  # the re-plan must not repeat a failed action
-        return _proposal(action)
+        return _proposal(action), []
 
     healths = [_unhealthy(), _healthy()]
 
@@ -183,7 +185,19 @@ async def test_failed_verification_triggers_replan_with_a_different_action(db, m
 
 @pytest.mark.asyncio
 async def test_repeated_failure_escalates_after_max_attempts(db, monkeypatch):
-    monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
+    # Three distinct LOW-risk actions so the rate limiter (max 2 executions
+    # of the SAME action per service in the window) doesn't preempt this —
+    # that interaction is covered separately in
+    # test_rate_limit_blocks_before_max_attempts_for_a_repeated_action.
+    calls = {"n": 0}
+    rotation = ["retry_service", "rerun_health_check", "gather_logs"]
+
+    async def fake_diagnose(service_id, attempted_actions):
+        action = rotation[calls["n"]]
+        calls["n"] += 1
+        return _proposal(action), []
+
+    monkeypatch.setattr(orchestrator, "run_diagnosis", fake_diagnose)
     monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
     monkeypatch.setattr(orchestrator, "apply_safe_remediation", lambda service_id, action: None)
     monkeypatch.setattr(orchestrator, "verify_recovery", lambda service_id: _unhealthy())  # never recovers
@@ -192,7 +206,29 @@ async def test_repeated_failure_escalates_after_max_attempts(db, monkeypatch):
     result_incident, _ = await orchestrator.investigate(db, incident)
 
     assert result_incident.status == "escalation_required"
+    assert result_incident.attempted_actions == rotation
     assert len(result_incident.attempted_actions) == orchestrator.MAX_ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_rate_limit_blocks_before_a_third_repeat_of_the_same_action(db, monkeypatch):
+    """The execution rate limit (max 2 executions of the same action per
+    service per 10-minute window) can legitimately stop a runaway retry
+    loop before MAX_ATTEMPTS is reached — the incident still ends up
+    escalated, just via 'blocked' rather than a 3rd failed attempt."""
+    monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
+    monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
+    monkeypatch.setattr(orchestrator, "apply_safe_remediation", lambda service_id, action: None)
+    monkeypatch.setattr(orchestrator, "verify_recovery", lambda service_id: _unhealthy())  # never recovers
+
+    incident = new_incident(db, "demo-service")
+    result_incident, remediation = await orchestrator.investigate(db, incident)
+
+    assert result_incident.status == "escalation_required"
+    assert remediation.status == "blocked"
+    assert "rate limit" in (remediation.policy_reason or "")
+    # only 2 real executions happened, not 3 — the 3rd was blocked outright
+    assert result_incident.attempted_actions == ["retry_service", "retry_service"]
 
 
 @pytest.mark.asyncio
@@ -222,12 +258,22 @@ async def test_dangerous_action_is_blocked_and_never_executed(db, monkeypatch):
 async def test_apply_failure_is_a_controlled_failed_attempt_not_a_crash(db, monkeypatch):
     """Regression test: apply_safe_remediation raising (e.g. the target
     service returning 400 because a concurrent incident already resolved it)
-    must not propagate as an unhandled exception."""
+    must not propagate as an unhandled exception. Uses 3 distinct actions
+    (see test_repeated_failure_escalates_after_max_attempts for why) so the
+    rate limiter doesn't preempt the 3rd attempt."""
 
     def boom(service_id, action):
         raise RuntimeError("target unreachable")
 
-    monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
+    calls = {"n": 0}
+    rotation = ["retry_service", "rerun_health_check", "gather_logs"]
+
+    async def fake_diagnose(service_id, attempted_actions):
+        action = rotation[calls["n"]]
+        calls["n"] += 1
+        return _proposal(action), []
+
+    monkeypatch.setattr(orchestrator, "run_diagnosis", fake_diagnose)
     monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
     monkeypatch.setattr(orchestrator, "apply_safe_remediation", boom)
     monkeypatch.setattr(orchestrator, "verify_recovery", lambda service_id: _healthy())
@@ -237,14 +283,16 @@ async def test_apply_failure_is_a_controlled_failed_attempt_not_a_crash(db, monk
     result_incident, _ = await orchestrator.investigate(db, incident)
 
     assert result_incident.status == "escalation_required"
-    assert result_incident.attempted_actions == ["retry_service"] * orchestrator.MAX_ATTEMPTS
+    assert result_incident.attempted_actions == rotation
 
 
 @pytest.mark.asyncio
 async def test_no_effect_apply_is_not_reported_as_success(db, monkeypatch):
     """Regression test: if the target reports the action had no effect
     (its failure state already changed, e.g. fixed by someone else), that
-    must not be reported as a successful resolution."""
+    must not be reported as a successful resolution — whether the incident
+    ends up re-planning into a normal failed attempt or getting rate-limited
+    (both are legitimate outcomes here), it must never be 'resolved'."""
     monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
     monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
     monkeypatch.setattr(
@@ -256,8 +304,9 @@ async def test_no_effect_apply_is_not_reported_as_success(db, monkeypatch):
     incident = new_incident(db, "demo-service")
     result_incident, remediation = await orchestrator.investigate(db, incident)
 
-    assert remediation.status == "failed"
+    assert remediation.status in ("failed", "blocked")
     assert result_incident.status != "resolved"
+    assert result_incident.status in ("investigating", "escalation_required")
 
 
 @pytest.mark.asyncio
@@ -285,3 +334,53 @@ async def test_three_rejections_escalate_without_any_real_attempt(db, monkeypatc
     assert result_incident.status == "escalation_required"
     assert result_incident.attempted_actions == []
     assert len(result_incident.rejected_actions) == orchestrator.MAX_ATTEMPTS
+
+
+@pytest.mark.asyncio
+async def test_observe_only_mode_never_executes_end_to_end(db, monkeypatch):
+    """Integration test: the orchestrator, not just the policy engine in
+    isolation, must respect observe_only end to end."""
+    applied = []
+    set_autonomy_mode(db, "observe_only", "test-user")
+    monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
+    monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
+    monkeypatch.setattr(
+        orchestrator, "apply_safe_remediation", lambda service_id, action: applied.append(action)
+    )
+    monkeypatch.setattr(orchestrator, "verify_recovery", lambda service_id: _healthy())
+
+    incident = new_incident(db, "demo-service")
+    result_incident, remediation = await orchestrator.investigate(db, incident)
+
+    assert applied == []
+    assert result_incident.status == "recommended"
+    assert remediation.status == "proposed"
+
+
+@pytest.mark.asyncio
+async def test_kill_switch_downgrades_auto_execute_to_approval_end_to_end(db, monkeypatch):
+    applied = []
+    set_kill_switch(db, True, "test-user")
+    monkeypatch.setattr(orchestrator, "run_diagnosis", _diagnose_fixed("retry_service"))
+    monkeypatch.setattr(orchestrator, "find_similar_incidents", lambda *a, **k: [])
+    monkeypatch.setattr(
+        orchestrator, "apply_safe_remediation", lambda service_id, action: applied.append(action)
+    )
+    monkeypatch.setattr(orchestrator, "verify_recovery", lambda service_id: _healthy())
+
+    incident = new_incident(db, "demo-service")
+    result_incident, remediation = await orchestrator.investigate(db, incident)
+
+    assert applied == []  # a LOW-risk action that would normally auto-execute
+    assert remediation.status == "awaiting_approval"
+    assert result_incident.status == "awaiting_approval"
+
+    # turning the kill switch off and approving should still work normally
+    set_kill_switch(db, False, "test-user")
+    result_incident, result_remediation = await orchestrator.approve_remediation(
+        db, incident.id, remediation.id, approved_by="elisa"
+    )
+    assert applied == ["retry_service"]
+    assert result_remediation.approved_by == "elisa"
+    assert result_remediation.executed_by == "human"
+    assert result_incident.status == "resolved"
