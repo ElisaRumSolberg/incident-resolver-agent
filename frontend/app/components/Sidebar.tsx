@@ -86,12 +86,21 @@ export function Sidebar() {
             </div>
             <div className="min-w-0 flex-1">
               <div className="truncate text-xs font-medium text-[var(--color-text-primary)]">Guest</div>
-              <button
-                onClick={signInWithGoogle}
-                className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
-              >
-                Sign in with Google
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={signInWithGoogle}
+                  className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-primary)]"
+                >
+                  Sign in with Google
+                </button>
+                <span className="text-[11px] text-[var(--color-border)]">·</span>
+                <button
+                  onClick={handleSignOut}
+                  className="text-[11px] text-[var(--color-text-muted)] hover:text-[var(--color-critical)]"
+                >
+                  Exit
+                </button>
+              </div>
             </div>
           </div>
         )}
