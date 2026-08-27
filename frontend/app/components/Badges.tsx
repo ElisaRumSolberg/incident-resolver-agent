@@ -37,7 +37,7 @@ export function RiskBadge({ risk }: { risk: Risk }) {
       className="inline-block rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide"
       style={{ color, borderColor: `${color}55`, background: `${color}1a` }}
     >
-      {risk} risk
+      {risk} action risk
     </span>
   );
 }

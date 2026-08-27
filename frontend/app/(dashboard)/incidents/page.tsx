@@ -39,6 +39,13 @@ export default function IncidentsPage() {
 
   useEffect(() => {
     fetchIncidents();
+    // This page's own heading says "Live Incidents" — it needs to actually
+    // be live during a demo. A single fetch-on-mount left the list stale
+    // for the ~15-20s a diagnosis takes, showing 0 active incidents the
+    // whole time even though one was already running, until a full page
+    // reload picked it up.
+    const interval = setInterval(fetchIncidents, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   async function handleTrigger(scenario: string) {

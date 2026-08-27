@@ -78,16 +78,21 @@ const STEPS = [
 ];
 
 export default function WelcomePage() {
-  const { user, loading, isGuest, signInWithGoogle, continueAsGuest } = useAuth();
+  const { user, loading, isGuest, signInWithGoogle, continueAsGuest, signOut } = useAuth();
   const router = useRouter();
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && (user || isGuest)) {
+    // A previously-chosen guest session skips straight to the app — that
+    // choice was already explicit. A signed-in Google session still stops
+    // here, so someone else's account left logged in on this browser gets
+    // a chance to continue as guest or switch accounts instead of being
+    // silently redirected in as that user.
+    if (!loading && isGuest) {
       router.replace("/overview");
     }
-  }, [loading, user, isGuest, router]);
+  }, [loading, isGuest, router]);
 
   async function handleSignIn() {
     setSigningIn(true);
@@ -104,6 +109,15 @@ export default function WelcomePage() {
   function handleGuest() {
     continueAsGuest();
     router.replace("/overview");
+  }
+
+  function handleContinue() {
+    router.replace("/overview");
+  }
+
+  async function handleSwitchAccount() {
+    await signOut();
+    await handleSignIn();
   }
 
   return (
@@ -140,40 +154,82 @@ export default function WelcomePage() {
         </p>
 
         <div className="mt-10">
-          <button
-            onClick={handleSignIn}
-            disabled={signingIn || loading}
-            className="flex items-center gap-3 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-[#1f1f1f] shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0"
-          >
-            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
-              <path
-                fill="#FFC107"
-                d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-              />
-              <path
-                fill="#FF3D00"
-                d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"
-              />
-              <path
-                fill="#4CAF50"
-                d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-              />
-              <path
-                fill="#1976D2"
-                d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
-              />
-            </svg>
-            {signingIn ? "Signing in..." : "Sign in with Google"}
-          </button>
-          {error && <p className="mt-3 text-xs text-[var(--color-critical)]">{error}</p>}
-          <div className="mt-4">
-            <button
-              onClick={handleGuest}
-              className="text-xs text-[var(--color-text-muted)] underline underline-offset-2 transition hover:text-[var(--color-text-secondary)]"
-            >
-              Continue without signing in
-            </button>
-          </div>
+          {user ? (
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+                {user.photoURL && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={user.photoURL}
+                    alt=""
+                    className="h-6 w-6 rounded-full"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+                <span>Signed in as {user.displayName ?? user.email}</span>
+              </div>
+              <button
+                onClick={handleContinue}
+                className="rounded-lg px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl"
+                style={{ background: "var(--color-primary)" }}
+              >
+                Continue
+              </button>
+              <div className="flex items-center gap-4 text-xs">
+                <button
+                  onClick={handleGuest}
+                  className="text-[var(--color-text-muted)] underline underline-offset-2 transition hover:text-[var(--color-text-secondary)]"
+                >
+                  Continue as guest instead
+                </button>
+                <span className="text-[var(--color-border)]">·</span>
+                <button
+                  onClick={handleSwitchAccount}
+                  className="text-[var(--color-text-muted)] underline underline-offset-2 transition hover:text-[var(--color-text-secondary)]"
+                >
+                  Not you? Switch account
+                </button>
+              </div>
+              {error && <p className="mt-1 text-xs text-[var(--color-critical)]">{error}</p>}
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={handleSignIn}
+                disabled={signingIn || loading}
+                className="flex items-center gap-3 rounded-lg bg-white px-6 py-3 text-sm font-semibold text-[#1f1f1f] shadow-lg shadow-black/20 transition hover:-translate-y-0.5 hover:shadow-xl disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                  <path
+                    fill="#FFC107"
+                    d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
+                  />
+                  <path
+                    fill="#FF3D00"
+                    d="m6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"
+                  />
+                  <path
+                    fill="#4CAF50"
+                    d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
+                  />
+                  <path
+                    fill="#1976D2"
+                    d="M43.611 20.083H42V20H24v8h11.303a12.04 12.04 0 0 1-4.087 5.571l.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"
+                  />
+                </svg>
+                {signingIn ? "Signing in..." : "Sign in with Google"}
+              </button>
+              {error && <p className="mt-3 text-xs text-[var(--color-critical)]">{error}</p>}
+              <div className="mt-4">
+                <button
+                  onClick={handleGuest}
+                  className="text-xs text-[var(--color-text-muted)] underline underline-offset-2 transition hover:text-[var(--color-text-secondary)]"
+                >
+                  Continue without signing in
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* How it works */}
