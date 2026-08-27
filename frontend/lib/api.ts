@@ -27,7 +27,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    // The backend's error body is usually {"detail": "human-readable message"}
+    // — surface that directly instead of dumping the raw status line + JSON
+    // blob in front of a judge watching a live demo.
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed && typeof parsed.detail === "string") message = parsed.detail;
+    } catch {
+      // Not JSON — fall back to the raw body.
+    }
+    throw new Error(message || `${res.status} ${res.statusText}`);
   }
   return res.json();
 }
