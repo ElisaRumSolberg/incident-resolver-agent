@@ -60,7 +60,7 @@ class ConfigSnapshot(BaseModel):
 
 class RemediationProposal(BaseModel):
     root_cause: str
-    confidence: float
+    confidence: float = Field(ge=0.0, le=1.0)
     severity: Literal["low", "medium", "high", "critical"]
     action: str
     reason: str

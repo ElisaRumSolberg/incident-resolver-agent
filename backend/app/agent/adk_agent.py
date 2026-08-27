@@ -4,6 +4,7 @@ from google.adk.agents import LlmAgent
 from google.adk.runners import InMemoryRunner
 from google.adk.tools import FunctionTool
 from google.genai import types
+from pydantic import ValidationError
 
 from app.agent.prompts import AGENT_INSTRUCTION, previous_attempts_context
 from app.agent.tools import (
@@ -101,14 +102,22 @@ def _build_tools(service_id: str, attempted_actions: list[str], state: _Pipeline
                 "error": f"'{action}' was already tried for this incident and did not resolve it. "
                 f"Propose a different action. Remaining untried options: {', '.join(remaining) or '(none)'}"
             }
+        try:
+            proposal = RemediationProposal(
+                root_cause=root_cause,
+                confidence=confidence,
+                severity=severity,  # type: ignore[arg-type]
+                action=action,
+                reason=reason,
+            )
+        except ValidationError as exc:
+            # Malformed structured output (e.g. severity outside
+            # low/medium/high/critical, confidence outside 0-1) must not
+            # crash the pipeline — give the model a chance to correct itself,
+            # same as the action-validation error above.
+            return {"error": f"Invalid diagnosis: {exc}. Check severity and confidence and try again."}
         state.tool_calls.append("propose_remediation")
-        state.proposal = RemediationProposal(
-            root_cause=root_cause,
-            confidence=confidence,
-            severity=severity,  # type: ignore[arg-type]
-            action=action,
-            reason=reason,
-        )
+        state.proposal = proposal
         return {"recorded": True}
 
     return [

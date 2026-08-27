@@ -222,6 +222,8 @@ async def approve_remediation(
     remediation = get_remediation(db, remediation_id)
     if incident is None or remediation is None:
         raise ValueError("Incident or remediation not found.")
+    if remediation.incident_id != incident_id:
+        raise ValueError("This remediation does not belong to the given incident.")
     if remediation.status != "awaiting_approval":
         raise ValueError("Remediation is not awaiting approval.")
 
@@ -245,6 +247,8 @@ async def reject_remediation(
     remediation = get_remediation(db, remediation_id)
     if incident is None or remediation is None:
         raise ValueError("Incident or remediation not found.")
+    if remediation.incident_id != incident_id:
+        raise ValueError("This remediation does not belong to the given incident.")
     if remediation.status != "awaiting_approval":
         raise ValueError("Remediation is not awaiting approval.")
 
