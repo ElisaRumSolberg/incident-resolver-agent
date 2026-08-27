@@ -2,16 +2,14 @@
 
 This is the "production service" the Incident Resolver Agent watches over.
 It exposes a health check, a log feed, and a small set of admin endpoints
-that simulate three failure scenarios and their fixes. Everything is
+that simulate four failure scenarios and their fixes. Everything is
 in-memory and deterministic so the agent's diagnosis/remediation loop is
 reproducible for demos and judging.
 """
 
-import os
-import time
 import uuid
 from datetime import datetime, timezone
-from typing import Literal, Optional
+from typing import Literal
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
