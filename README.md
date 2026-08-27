@@ -15,7 +15,7 @@ and never auto-executes anything outside the whitelist at all.
 
 ## Live demo
 
-- Dashboard: https://incident-resolver-web-722901486266.us-central1.run.app (sign in with Google)
+- Dashboard: https://incident-resolver-web-722901486266.us-central1.run.app (sign in with Google, or use guest mode)
 - API: https://incident-resolver-api-722901486266.us-central1.run.app
 - Target service (the thing the agent watches over): https://incident-demo-service-722901486266.us-central1.run.app
 
@@ -24,28 +24,34 @@ and never auto-executes anything outside the whitelist at all.
 ```mermaid
 flowchart TB
     subgraph Client
+        AUTH["Firebase Auth\nGoogle sign-in or guest"]
         UI["Next.js Dashboard\n(Cloud Run)"]
     end
 
     subgraph Agent Backend ["FastAPI Backend (Cloud Run)"]
         API["REST API\napp/main.py"]
         ORCH["Orchestrator\nobserve → act → verify → re-plan\napp/orchestrator.py"]
-        SAFETY["Safety Whitelist\nLOW / MEDIUM / HIGH\napp/agent/safety.py"]
+        POLICY["Safety Policy Engine\nwhitelist + service profiles +\nautonomy mode + kill switch + rate limit\napp/agent/policy.py"]
+        SETTINGS["Autonomy Mode / Kill Switch\napp/settings_store.py"]
         ADK["ADK LlmAgent\ndiagnosis + remediation proposal\napp/agent/adk_agent.py"]
+        SIM["Incident Memory\nsimilarity search\napp/agent/similarity.py"]
     end
 
     GEMINI["Gemini 3\n(Vertex AI)"]
-    FS[("Firestore\nincidents / remediations / events")]
-    DEMO["Demo target service\n(Cloud Run)\nsimulated failure scenarios"]
+    FS[("Firestore\nincidents / remediations / events /\nsettings / service_profiles / postmortems")]
+    DEMO["Demo target service\n(Cloud Run)\n4 simulated failure scenarios"]
 
+    UI -- "sign in" --> AUTH
     UI -- "REST" --> API
     API --> ORCH
-    ORCH --> SAFETY
-    ORCH -- "tool calls: read logs,\nextract patterns, inspect config" --> ADK
+    ORCH -- "evaluate_safety_policy" --> POLICY
+    POLICY -- "reads mode / kill switch" --> SETTINGS
+    ORCH -- "search_incident_memory" --> SIM
+    ORCH -- "tool calls: read logs,\nextract patterns, inspect config,\npropose remediation" --> ADK
     ADK -- "reasoning" --> GEMINI
     ORCH -- "check health / apply fix / verify" --> DEMO
-    ORCH -- "persist state + activity log" --> FS
-    UI -- "poll / approve / reject" --> API
+    ORCH -- "persist state + audit trail" --> FS
+    UI -- "poll / approve / reject /\nchange mode / edit service policy" --> API
 ```
 
 **Why this shape:** the LLM (via ADK) is only trusted to *diagnose* and
@@ -53,32 +59,37 @@ flowchart TB
 pattern extraction) to gather evidence, then reports a structured
 `{root_cause, confidence, severity, action, reason}`. Every decision about
 whether that `action` is safe to run, whether it needs human approval, and
-what to do if it fails is made deterministically in `orchestrator.py` against
-the whitelist in `safety.py` — the agent's own opinion of its action's risk
-is never trusted.
+what to do if it fails is made deterministically by the Safety Policy Engine
+(`app/agent/policy.py`) — the agent's own opinion of its action's risk is
+never trusted, and the engine is the *only* place execution decisions are
+made (orchestrator.py never checks risk directly).
 
 ## Repository layout
 
 ```
 backend/          FastAPI + Google ADK agent + Firestore persistence
 demo-service/      the "production service" the agent watches over — simulates
-                    3 deterministic failure scenarios so the demo is reproducible
+                    4 deterministic failure scenarios so the demo is reproducible
 frontend/          Next.js dashboard — a small SRE operations center
 ```
 
 ## Dashboard
 
-Five pages behind a sidebar:
+Six pages behind a sidebar:
 
 - **Overview** — active/resolved/awaiting-approval counts, auto-fix rate, avg recovery time
 - **Incidents** — live incidents + full history with service/status filters, incident detail (evidence, safety decision, approval, timeline)
-- **Memory** — what the agent has learned: top root-cause categories, per-action remediation success rates, and a "similar past incidents" panel on each new diagnosis (deterministic word-overlap + same-service scoring, no embeddings)
-- **Safety** — autonomy mode + kill switch controls, plus how many actions were auto-executed, approved, rejected, or blocked
-- **Services** — per-service risk profiles (criticality, environment, autonomy, allowed/approval-required actions)
+- **Memory** — what the agent has learned: top root-cause categories, per-action remediation success rates, and a "similar past incidents" panel on each new diagnosis, drawn from both resolved AND failed/escalated incidents (deterministic word-overlap + same-service scoring, no embeddings)
+- **Safety** — live autonomy mode + kill switch controls, plus how many actions were auto-executed, approved, rejected, or blocked
+- **Services** — per-service risk profiles (criticality, environment, autonomy, allowed/approval-required actions, risk overrides)
 - **Postmortems** — one grounded Gemini summary per resolved incident, generated on demand and cached
 
-Access is gated behind Google sign-in (Firebase Auth) — the root URL is a
-public Welcome page; everything else redirects there if you're not signed in.
+The root URL is a public Welcome page. From there you can either sign in
+with Google (Firebase Auth — your name/email then appears in the audit
+trail as who approved/rejected/changed what) or **continue as a guest**
+with full read/write access to the dashboard, no auth required — useful
+for quickly reviewing the live demo. Every dashboard page redirects back
+to the Welcome page if you're neither signed in nor in guest mode.
 
 ## Safety model
 
@@ -115,22 +126,31 @@ Implemented in `backend/app/agent/tools.py`, wired into the ADK agent in
 - `read_recent_logs` — recent structured log entries from the target service
 - `extract_error_patterns` — deterministic log-line grouping with a confidence score (no LLM)
 - `inspect_service_config` — safe, non-secret config metadata
-- `propose_remediation` (ADK tool, LLM-driven) — the agent's one required output: diagnosis + proposed whitelisted action
+- `propose_remediation` (ADK tool, LLM-driven) — the agent's one required output: diagnosis + proposed action. Code-enforced (not just prompted) to never repropose an action already tried for this incident.
+- `search_incident_memory` — the similarity search against past incidents (deterministic, not an LLM call)
+- `evaluate_safety_policy` — the Safety Policy Engine's decision (see below)
 - `apply_safe_remediation` — executes the action against the target service
 - `save_incident_state` — persisted via `app/incidents_store.py` + `app/agent/activity_log.py`
 
+Every incident records which of these actually ran (`Incident.tools_used`),
+shown in the dashboard's Evidence panel, and every activity-log event
+carries who/what performed it (`agent` / `human` / `safety_engine`).
+
 ## Demo scenarios
 
-The target service (`demo-service/main.py`) simulates three deterministic
-failure modes so the loop is reproducible:
+The target service (`demo-service/main.py`) simulates four deterministic
+failure modes so the loop is reproducible for judging:
 
-1. **Missing env var** — `DATABASE_URL` unset → fix: `restore_env_var`
-2. **Broken dependency** — upstream `payments-api` failing → fix: `fix_dependency_config`
-3. **Bad deployment** — new revision crash-looping → fix: `rollback_revision`
+1. **Missing env var** — `DATABASE_URL` unset → fix: `restore_env_var` (MEDIUM, needs approval)
+2. **Broken dependency** — upstream `payments-api` failing → fix: `fix_dependency_config` (MEDIUM, needs approval)
+3. **Bad deployment** — new revision crash-looping → fix: `rollback_revision` (MEDIUM, needs approval)
+4. **Credential exposure** — a service account key found in public logs → the agent correctly diagnoses this needs `rotate_credentials`, which is deliberately **not** on the safe-execute whitelist — the Safety Policy Engine blocks it outright and escalates to a human, without ever calling `apply_safe_remediation`. This is the one scenario that actually proves the "we never trust the model's own risk opinion" claim live, rather than by inspection.
 
-All three are MEDIUM risk in this MVP, so the dashboard will always show an
-approval step — this is intentional: it's the safest default, and the demo
-still shows the full observe → diagnose → act → verify loop once approved.
+None of the four map to a LOW-risk action, so approving/blocking is always
+visible in the demo; LOW-risk auto-execution (`retry_service` etc.) is
+exercised by the automated test suite and can be triggered directly via
+`POST /incidents` if the target service is already healthy-but-flaky, but
+isn't wired to a dedicated demo button yet.
 
 ## Running locally
 
@@ -165,8 +185,11 @@ cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
 npm run dev -- -p 3002
 ```
 
-Open http://localhost:3002, click a scenario button, and watch the agent
-investigate, propose a fix, and (after you approve) verify recovery.
+Open http://localhost:3002, use guest mode or sign in with Google (the
+Firebase config in `frontend/lib/firebase.ts` is a public client key —
+`localhost` is pre-authorized, no local setup needed), click a scenario
+button, and watch the agent investigate, propose a fix, and (after you
+approve) verify recovery.
 
 ### Tests
 
