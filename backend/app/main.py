@@ -43,27 +43,39 @@ def health():
     return {"status": "ok"}
 
 
-@app.post("/demo/trigger")
-def demo_trigger(payload: dict):
-    scenario = payload.get("scenario")
+def _proxy_to_demo_service(path: str, json_body: dict | None = None) -> dict:
+    """POSTs to the demo service and relays its response, distinguishing a
+    real (reachable) rejection — e.g. "an incident is already active" — from
+    genuine unreachability. Both used to be reported identically as a
+    misleading 502 "Could not reach demo service", which showed the wrong
+    diagnosis to a user (a stale incident_mode conflict looks nothing like a
+    network failure)."""
     try:
-        resp = httpx.post(
-            f"{settings.demo_service_url}/admin/incidents/trigger", json={"scenario": scenario}, timeout=10.0
-        )
+        resp = httpx.post(f"{settings.demo_service_url}{path}", json=json_body, timeout=10.0)
         resp.raise_for_status()
         return resp.json()
+    except httpx.HTTPStatusError as exc:
+        # The demo service was reached fine and returned a real error —
+        # relay its actual status and message instead of pretending it's a
+        # connectivity problem.
+        try:
+            detail = exc.response.json().get("detail", exc.response.text)
+        except ValueError:
+            detail = exc.response.text
+        raise HTTPException(exc.response.status_code, detail) from exc
     except httpx.HTTPError as exc:
+        # Genuinely couldn't reach it at all (timeout, connection refused).
         raise HTTPException(502, f"Could not reach demo service: {exc}") from exc
+
+
+@app.post("/demo/trigger")
+def demo_trigger(payload: dict):
+    return _proxy_to_demo_service("/admin/incidents/trigger", {"scenario": payload.get("scenario")})
 
 
 @app.post("/demo/reset")
 def demo_reset():
-    try:
-        resp = httpx.post(f"{settings.demo_service_url}/admin/incidents/reset", timeout=10.0)
-        resp.raise_for_status()
-        return resp.json()
-    except httpx.HTTPError as exc:
-        raise HTTPException(502, f"Could not reach demo service: {exc}") from exc
+    return _proxy_to_demo_service("/admin/incidents/reset")
 
 
 def _incident_response(db, incident_id: str) -> dict:

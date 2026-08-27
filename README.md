@@ -202,7 +202,13 @@ venv/Scripts/python.exe -m pytest tests/ -v
 
 All three services are deployed independently. The demo service is pinned to
 a single warm instance (`--min-instances=1 --max-instances=1`) since it holds
-its simulated incident state in memory.
+its simulated incident state in memory — this also means it does **not**
+scale horizontally, so two people triggering scenarios at the same moment
+share the same target and can race each other (see Known limitations).
+The backend and frontend are also kept at `--min-instances=1` (no upper
+cap) for the hackathon judging window, purely to avoid Cloud Run
+cold-start latency on the first request after idle time — not required for
+correctness, just for a snappier live demo.
 
 ```bash
 # demo-service
@@ -251,6 +257,26 @@ with no setup:
   token's identity, never anything the client claims. The frontend already
   attaches a real ID token to every write request whenever a Firebase user
   is signed in, so flipping the flag needs no frontend changes.
+
+## Known limitations
+
+- **The demo target is a single shared instance.** If two people trigger
+  scenarios at the same moment, the second `trigger` call gets a clean 400
+  ("an incident is already active") rather than silently racing — but it
+  does mean only one demo can be "in flight" globally at a time. Click
+  Reset if the demo service seems stuck on someone else's test run.
+- **None of the 4 demo scenarios exercise LOW-risk auto-execution** (they're
+  all MEDIUM or intentionally-blocked HIGH) — the "LOW risk runs
+  automatically, no approval needed" claim is proven by the test suite and
+  can be triggered directly via the API, but there's no dashboard button
+  for it yet.
+- **The approve/reject race window across multiple Cloud Run instances is
+  not closed with a Firestore transaction** — within a single instance,
+  Firestore's blocking calls happen to serialize concurrent requests, but a
+  second instance (Cloud Run can scale the backend beyond one) reading the
+  same remediation before the first instance's write lands is a real,
+  narrow possibility. Not expected to surface during a single-presenter
+  live demo.
 
 ## What this is not
 
