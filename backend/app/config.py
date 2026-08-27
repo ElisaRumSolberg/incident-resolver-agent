@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
     demo_service_url: str = "http://localhost:8080"
     demo_service_id: str = "demo-service"
+    # When true (the hackathon-deployed default), write endpoints trust the
+    # actor name a caller claims in the request body — this is what lets
+    # guest mode work with no backend account system. When false, every
+    # write endpoint requires a valid Firebase ID token instead; see
+    # app/auth.py. Flip via the DEMO_MODE env var.
+    demo_mode: bool = True
 
     @property
     def allowed_origins_list(self) -> list[str]:

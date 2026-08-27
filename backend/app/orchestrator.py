@@ -139,7 +139,8 @@ async def _apply_and_verify(
     db: firestore.Client, incident: Incident, remediation: RemediationRecord
 ) -> tuple[Incident, RemediationRecord]:
     execution_id = str(uuid.uuid4())
-    update_remediation(db, remediation.id, execution_id=execution_id)
+    executed_at = datetime.now(timezone.utc).isoformat()
+    update_remediation(db, remediation.id, execution_id=execution_id, executed_at=executed_at)
     update_incident(db, incident.id, status="remediating")
     log_event(db, incident.id, "remediation_applying", f"Applying '{remediation.action}'.")
 

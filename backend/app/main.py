@@ -1,9 +1,10 @@
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import orchestrator
 from app.agent.activity_log import list_events
+from app.auth import resolve_actor
 from app.agent.postmortem import generate_postmortem
 from app.agent.tools import check_service_health
 from app.analytics import compute_analytics, compute_overview, compute_safety_stats
@@ -109,9 +110,9 @@ def get_settings():
 
 
 @app.put("/settings/autonomy-mode")
-def put_autonomy_mode(payload: dict):
+def put_autonomy_mode(payload: dict, authorization: str | None = Header(None)):
     mode = payload.get("mode")
-    changed_by = payload.get("changed_by", "dashboard user")
+    changed_by = resolve_actor(authorization, payload.get("changed_by"), fallback="guest")
     if mode not in ("observe_only", "recommend_only", "approval_required", "autonomous_low_risk"):
         raise HTTPException(400, f"Unknown autonomy mode: {mode}")
     db = get_firestore_client()
@@ -119,9 +120,9 @@ def put_autonomy_mode(payload: dict):
 
 
 @app.put("/settings/kill-switch")
-def put_kill_switch(payload: dict):
+def put_kill_switch(payload: dict, authorization: str | None = Header(None)):
     enabled = payload.get("enabled")
-    changed_by = payload.get("changed_by", "dashboard user")
+    changed_by = resolve_actor(authorization, payload.get("changed_by"), fallback="guest")
     if not isinstance(enabled, bool):
         raise HTTPException(400, "'enabled' must be a boolean.")
     db = get_firestore_client()
@@ -144,7 +145,8 @@ def get_service(service_id: str):
 
 
 @app.put("/services/{service_id}")
-def put_service(service_id: str, payload: dict):
+def put_service(service_id: str, payload: dict, authorization: str | None = Header(None)):
+    resolve_actor(authorization, None, fallback="guest")  # enforces the auth gate in non-demo mode
     payload["service_id"] = service_id
     try:
         profile = ServiceProfile(**payload)
@@ -210,8 +212,10 @@ def get_incident_events(incident_id: str):
 
 
 @app.post("/incidents/{incident_id}/remediations/{remediation_id}/approve")
-async def approve(incident_id: str, remediation_id: str, payload: dict | None = None):
-    approved_by = (payload or {}).get("approved_by", "dashboard user")
+async def approve(
+    incident_id: str, remediation_id: str, payload: dict | None = None, authorization: str | None = Header(None)
+):
+    approved_by = resolve_actor(authorization, (payload or {}).get("approved_by"), fallback="guest")
     db = get_firestore_client()
     try:
         await orchestrator.approve_remediation(db, incident_id, remediation_id, approved_by=approved_by)
@@ -221,8 +225,10 @@ async def approve(incident_id: str, remediation_id: str, payload: dict | None = 
 
 
 @app.post("/incidents/{incident_id}/remediations/{remediation_id}/reject")
-async def reject(incident_id: str, remediation_id: str, payload: dict | None = None):
-    rejected_by = (payload or {}).get("rejected_by", "dashboard user")
+async def reject(
+    incident_id: str, remediation_id: str, payload: dict | None = None, authorization: str | None = Header(None)
+):
+    rejected_by = resolve_actor(authorization, (payload or {}).get("rejected_by"), fallback="guest")
     db = get_firestore_client()
     try:
         await orchestrator.reject_remediation(db, incident_id, remediation_id, rejected_by=rejected_by)

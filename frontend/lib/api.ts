@@ -8,13 +8,22 @@ import type {
   ServiceProfile,
   StartIncidentResponse,
 } from "./types";
+import { auth } from "./firebase";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  // Attached whenever a real (non-guest) Firebase user is signed in — the
+  // backend only enforces it when DEMO_MODE=false, but sending it now means
+  // guest-mode's relaxed default and a locked-down deployment both work
+  // without any further frontend changes.
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const idToken = await auth.currentUser?.getIdToken().catch(() => undefined);
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: { "Content-Type": "application/json", ...(options?.headers || {}) },
+    headers: { ...headers, ...(options?.headers || {}) },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -73,14 +82,14 @@ export function listPostmortems() {
   return request<{ postmortems: Postmortem[] }>("/postmortems");
 }
 
-export function approveRemediation(incidentId: string, remediationId: string, approvedBy = "dashboard user") {
+export function approveRemediation(incidentId: string, remediationId: string, approvedBy = "guest") {
   return request<IncidentResponse>(
     `/incidents/${incidentId}/remediations/${remediationId}/approve`,
     { method: "POST", body: JSON.stringify({ approved_by: approvedBy }) }
   );
 }
 
-export function rejectRemediation(incidentId: string, remediationId: string, rejectedBy = "dashboard user") {
+export function rejectRemediation(incidentId: string, remediationId: string, rejectedBy = "guest") {
   return request<IncidentResponse>(
     `/incidents/${incidentId}/remediations/${remediationId}/reject`,
     { method: "POST", body: JSON.stringify({ rejected_by: rejectedBy }) }
@@ -91,14 +100,14 @@ export function getSettings() {
   return request<GlobalSettings>("/settings");
 }
 
-export function setAutonomyMode(mode: string, changedBy = "dashboard user") {
+export function setAutonomyMode(mode: string, changedBy = "guest") {
   return request<GlobalSettings>("/settings/autonomy-mode", {
     method: "PUT",
     body: JSON.stringify({ mode, changed_by: changedBy }),
   });
 }
 
-export function setKillSwitch(enabled: boolean, changedBy = "dashboard user") {
+export function setKillSwitch(enabled: boolean, changedBy = "guest") {
   return request<GlobalSettings>("/settings/kill-switch", {
     method: "PUT",
     body: JSON.stringify({ enabled, changed_by: changedBy }),

@@ -231,6 +231,27 @@ Gemini runs through Vertex AI; `GOOGLE_CLOUD_LOCATION=global` is required
 because `gemini-3-flash-preview` is not yet served in regional endpoints
 like `us-central1`.
 
+## Security notes
+
+Two things are **intentionally** open in this deployment, both for the same
+reason — a hackathon judge should be able to try the live demo in seconds,
+with no setup:
+
+- **The demo service's admin endpoints** (`/admin/incidents/trigger|resolve|reset`)
+  have no authentication. It only ever mutates its own in-memory simulated
+  state — it is not a real production system, and there is nothing behind it
+  to protect.
+- **The backend's write endpoints** (approve/reject, autonomy mode, kill
+  switch, service policy) run in `DEMO_MODE=true` by default, which trusts
+  the actor name a caller claims in the request body — this is what makes
+  guest mode work with no backend account system. Setting `DEMO_MODE=false`
+  switches every one of those endpoints to require a valid Firebase ID token
+  (`Authorization: Bearer <token>`) instead, verified server-side via
+  `firebase-admin` (`backend/app/auth.py`); the actor is then the verified
+  token's identity, never anything the client claims. The frontend already
+  attaches a real ID token to every write request whenever a Firebase user
+  is signed in, so flipping the flag needs no frontend changes.
+
 ## What this is not
 
 This agent does not provide legal, financial, or operational advice beyond

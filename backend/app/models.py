@@ -103,6 +103,7 @@ class RemediationRecord(BaseModel):
     reason: Optional[str] = None
     verified: bool = False
     created_at: Optional[str] = None
+    executed_at: Optional[str] = None  # when apply_safe_remediation was actually called
     # Audit trail
     approved_by: Optional[str] = None
     approved_at: Optional[str] = None

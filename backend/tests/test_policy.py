@@ -139,3 +139,39 @@ def test_rate_limit_does_not_affect_a_different_action():
 
     evaluation = evaluate_policy(db, "demo-service", "rerun_health_check")
     assert evaluation.decision == "auto_execute"
+
+
+def test_rate_limit_windows_on_executed_at_not_created_at():
+    """A remediation proposed long ago (e.g. it sat waiting for approval)
+    but executed just now must still count toward the rate limit — and one
+    proposed just now but never actually executed must not."""
+    from datetime import datetime, timedelta, timezone
+
+    from app.incidents_store import update_remediation
+
+    db = FakeFirestoreClient()
+    old_created = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+
+    r1 = new_remediation(db, "inc-1", "retry_service", risk="low", status="proposed", reason="x", service_id="demo-service")
+    update_remediation(db, r1.id, status="verified", created_at=old_created, executed_at=datetime.now(timezone.utc).isoformat())
+
+    r2 = new_remediation(db, "inc-2", "retry_service", risk="low", status="proposed", reason="x", service_id="demo-service")
+    update_remediation(db, r2.id, status="verified", created_at=old_created, executed_at=datetime.now(timezone.utc).isoformat())
+
+    # Both executed within the window (just now), even though created 30
+    # minutes ago -> rate limit should trigger.
+    evaluation = evaluate_policy(db, "demo-service", "retry_service")
+    assert evaluation.decision == "blocked"
+    assert "rate limit" in evaluation.reason.lower()
+
+
+def test_rate_limit_ignores_a_proposal_that_was_never_executed():
+    from app.incidents_store import update_remediation
+
+    db = FakeFirestoreClient()
+    for _ in range(3):
+        r = new_remediation(db, "inc-1", "retry_service", risk="low", status="proposed", reason="x", service_id="demo-service")
+        update_remediation(db, r.id, status="awaiting_approval")  # never actually applied
+
+    evaluation = evaluate_policy(db, "demo-service", "retry_service")
+    assert evaluation.decision == "auto_execute"

@@ -87,15 +87,23 @@ def _check_rate_limit(db: firestore.Client, service_id: str, action: str) -> tup
     regardless of whether the attempt ultimately succeeded — a failed
     execution still hit the target service and should count against the
     limit just as much as a successful one. "blocked"/"proposed"/
-    "awaiting_approval"/"rejected" never called apply and don't count."""
+    "awaiting_approval"/"rejected" never called apply and don't count.
+
+    Windowed on `executed_at` (when apply_safe_remediation actually ran),
+    not `created_at` (when the remediation was first proposed) — a proposal
+    that sat waiting for human approval for a while shouldn't distort the
+    rate-limit window relative to when the target service was actually hit.
+    Falls back to created_at for older records written before executed_at
+    existed.
+    """
     window_start = datetime.now(timezone.utc) - timedelta(minutes=RATE_LIMIT_WINDOW_MINUTES)
     records = list_remediations_for_service(db, service_id, action)
     recent_executions = [
         r
         for r in records
         if r.status in ("applied", "verified", "failed")
-        and r.created_at
-        and datetime.fromisoformat(r.created_at) > window_start
+        and (r.executed_at or r.created_at)
+        and datetime.fromisoformat(r.executed_at or r.created_at) > window_start
     ]
     if len(recent_executions) >= RATE_LIMIT_MAX_EXECUTIONS:
         return True, (
