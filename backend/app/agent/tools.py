@@ -36,6 +36,17 @@ def check_service_health(service_id: str) -> HealthResult:
             checks={"http": f"unreachable: {exc}"},
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
+    except Exception as exc:
+        # A reachable target returning a malformed body (missing fields,
+        # non-JSON, wrong types) is not an httpx.HTTPError — it's a
+        # pydantic ValidationError or JSON decode error, caught here so the
+        # same "can't confirm healthy -> report unhealthy" fallback applies
+        # regardless of *why* the health check couldn't be trusted.
+        return HealthResult(
+            status="unhealthy",
+            checks={"http": f"malformed health response: {exc}"},
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
 
 def read_recent_logs(service_id: str, limit: int = 50) -> list[LogEntry]:

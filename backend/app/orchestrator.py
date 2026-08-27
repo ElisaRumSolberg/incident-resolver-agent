@@ -171,7 +171,16 @@ async def _apply_and_verify(
     update_incident(db, incident.id, status="verifying")
     log_event(db, incident.id, "tool_used", "Agent called verify_recovery.")
     log_event(db, incident.id, "verifying", "Re-checking service health.")
-    health = verify_recovery(incident.service_id)
+    try:
+        health = verify_recovery(incident.service_id)
+    except Exception as exc:
+        # verify_recovery normally degrades to an "unhealthy" HealthResult
+        # on its own transport failures (see check_service_health), but
+        # this is defense-in-depth against any other unexpected exception —
+        # a verification failure must never crash the request or, worse,
+        # leave the incident silently stuck in "verifying" forever.
+        log_event(db, incident.id, "remediation_apply_failed", f"Verification failed: {exc}")
+        return await _handle_failed_attempt(db, incident, remediation)
     update_incident(db, incident.id, tools_used=incident.tools_used + ["verify_recovery"])
 
     if health.status == "healthy":
