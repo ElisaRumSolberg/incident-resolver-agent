@@ -43,6 +43,114 @@ function SlidersIcon() {
   );
 }
 
+function Logo() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div
+        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl shadow-lg shadow-black/20"
+        style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-blocked))" }}
+      >
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
+            stroke="white"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path d="M13 7.5l-3.4 5H12l-0.9 4L14.5 11H12l1-3.5z" fill="white" />
+        </svg>
+      </div>
+      <div className="text-base font-bold leading-none text-[var(--color-text-primary)]">
+        Incident{" "}
+        <span
+          className="bg-clip-text text-transparent"
+          style={{ backgroundImage: "linear-gradient(90deg, var(--color-primary), var(--color-blocked))" }}
+        >
+          Resolver
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M9 15l6-6M10 6l1-1a4 4 0 0 1 6 6l-1 1M14 18l-1 1a4 4 0 0 1-6-6l1-1" />
+    </svg>
+  );
+}
+
+function CloudRunIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 18a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-2A4.5 4.5 0 0 1 17 18H7z" />
+    </svg>
+  );
+}
+
+function DatabaseIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <ellipse cx="12" cy="5" rx="7" ry="2.5" />
+      <path d="M5 5v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V5M5 11v6c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-6" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.3-4.3" />
+    </svg>
+  );
+}
+
+function BrainIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4a2.5 2.5 0 0 0-2.5 2.5V7A2.5 2.5 0 0 0 4 9.5a2.5 2.5 0 0 0 1 4 2.5 2.5 0 0 0 2 4A2.5 2.5 0 0 0 9 20V6.5A2.5 2.5 0 0 0 9 4z" />
+      <path d="M15 4a2.5 2.5 0 0 1 2.5 2.5V7A2.5 2.5 0 0 1 20 9.5a2.5 2.5 0 0 1-1 4 2.5 2.5 0 0 1-2 4 2.5 2.5 0 0 1-2.5 2.5V6.5A2.5 2.5 0 0 1 15 4z" />
+    </svg>
+  );
+}
+
+function GearCheckIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="10" cy="10" r="6" />
+      <path d="M10 3v1.3M10 15.7V17M17 10h-1.3M4.3 10H3M15.2 4.8l-0.9 0.9M5.7 14.3l-0.9 0.9M15.2 15.2l-0.9-0.9M5.7 5.7l-0.9-0.9" />
+      <path d="M16 17l2 2 4-4" />
+    </svg>
+  );
+}
+
+function GuestIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7" />
+    </svg>
+  );
+}
+
+const TECH_BADGES = [
+  { icon: SparkleIcon, label: "Gemini 3" },
+  { icon: LinkIcon, label: "Google ADK" },
+  { icon: CloudRunIcon, label: "Cloud Run" },
+  { icon: DatabaseIcon, label: "Firestore" },
+];
+
 const FEATURES = [
   {
     icon: ShieldIcon,
@@ -71,10 +179,15 @@ const FEATURES = [
 ];
 
 const STEPS = [
-  { label: "Observe", detail: "Health checks, logs, and config are pulled from the live service." },
-  { label: "Diagnose", detail: "Gemini 3 proposes a root cause and a remediation action." },
-  { label: "Decide", detail: "A deterministic policy engine — not the model — decides what happens next." },
-  { label: "Act & Verify", detail: "The fix runs, health is re-checked, and the result is recorded." },
+  { label: "Observe", detail: "Health checks, logs, and config are pulled from the live service.", icon: SearchIcon },
+  { label: "Diagnose", detail: "Gemini 3 proposes a root cause and a remediation action.", icon: BrainIcon },
+  {
+    label: "Decide",
+    detail: "A deterministic policy engine — not the model — decides what happens next.",
+    icon: ShieldIcon,
+    badge: "Safety Engine",
+  },
+  { label: "Act & Verify", detail: "The fix runs, health is re-checked, and the result is recorded.", icon: GearCheckIcon },
 ];
 
 export default function WelcomePage() {
@@ -133,11 +246,33 @@ export default function WelcomePage() {
         style={{ background: "radial-gradient(circle, var(--color-accent), transparent 65%)" }}
       />
 
-      <div className="relative mx-auto flex max-w-5xl flex-col items-center px-6 py-20 text-center">
-        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-[var(--color-accent)] backdrop-blur">
-          <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-accent)]" />
-          Autonomous Incident Resolver
+      <div className="relative mx-auto max-w-6xl px-6 py-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <Logo />
+          <div className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] backdrop-blur md:flex">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
+            Autonomous Incident Response
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {TECH_BADGES.map((t) => {
+              const Icon = t.icon;
+              return (
+                <div
+                  key={t.label}
+                  className="flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/60 px-2.5 py-1 text-[11px] font-medium text-[var(--color-text-secondary)] backdrop-blur"
+                >
+                  <span className="text-[var(--color-accent)]">
+                    <Icon />
+                  </span>
+                  {t.label}
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      <div className="relative mx-auto flex max-w-5xl flex-col items-center px-6 pb-20 pt-8 text-center">
         <h1 className="max-w-3xl text-4xl font-bold leading-tight text-[var(--color-text-primary)] sm:text-5xl">
           An agent that investigates, decides, and acts —{" "}
           <span
@@ -220,14 +355,14 @@ export default function WelcomePage() {
                 {signingIn ? "Signing in..." : "Sign in with Google"}
               </button>
               {error && <p className="mt-3 text-xs text-[var(--color-critical)]">{error}</p>}
-              <div className="mt-4">
-                <button
-                  onClick={handleGuest}
-                  className="text-xs text-[var(--color-text-muted)] underline underline-offset-2 transition hover:text-[var(--color-text-secondary)]"
-                >
-                  Continue without signing in
-                </button>
-              </div>
+              <div className="mt-4 text-[11px] uppercase tracking-widest text-[var(--color-text-muted)]">or</div>
+              <button
+                onClick={handleGuest}
+                className="mt-4 flex items-center gap-2 rounded-lg border border-[var(--color-border)] px-6 py-3 text-sm font-semibold text-[var(--color-text-secondary)] transition hover:-translate-y-0.5 hover:border-[var(--color-primary)]/50 hover:text-[var(--color-text-primary)]"
+              >
+                <GuestIcon />
+                Continue without signing in
+              </button>
             </>
           )}
         </div>
@@ -238,15 +373,39 @@ export default function WelcomePage() {
             How it works — four steps, fully visible
           </div>
           <div className="grid gap-3 sm:grid-cols-4">
-            {STEPS.map((step, i) => (
+            {STEPS.map((step, i) => {
+              const StepIcon = step.icon;
+              const highlighted = Boolean(step.badge);
+              return (
               <div key={step.label} className="relative">
-                <div className="flex h-full flex-col rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 p-4 text-left backdrop-blur transition hover:border-[var(--color-primary)]/50">
-                  <div
-                    className="mb-3 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
-                    style={{ background: "var(--color-primary)", color: "#fff" }}
-                  >
-                    {i + 1}
+                <div
+                  className="flex h-full flex-col rounded-xl border p-4 text-left backdrop-blur transition hover:border-[var(--color-primary)]/50"
+                  style={{
+                    borderColor: highlighted ? "var(--color-blocked)" : "var(--color-border)",
+                    background: highlighted
+                      ? "color-mix(in srgb, var(--color-blocked) 8%, var(--color-surface))"
+                      : "color-mix(in srgb, var(--color-surface) 70%, transparent)",
+                  }}
+                >
+                  <div className="mb-3 flex items-center justify-between">
+                    <div
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+                      style={{ background: highlighted ? "var(--color-blocked)" : "var(--color-primary)", color: "#fff" }}
+                    >
+                      {i + 1}
+                    </div>
+                    <span style={{ color: highlighted ? "var(--color-blocked)" : "var(--color-text-muted)" }}>
+                      <StepIcon />
+                    </span>
                   </div>
+                  {step.badge && (
+                    <div
+                      className="mb-2 inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                      style={{ background: "color-mix(in srgb, var(--color-blocked) 20%, transparent)", color: "var(--color-blocked)" }}
+                    >
+                      {step.badge}
+                    </div>
+                  )}
                   <div className="mb-1 text-sm font-semibold text-[var(--color-text-primary)]">{step.label}</div>
                   <div className="text-xs leading-relaxed text-[var(--color-text-muted)]">{step.detail}</div>
                 </div>
@@ -261,7 +420,8 @@ export default function WelcomePage() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
