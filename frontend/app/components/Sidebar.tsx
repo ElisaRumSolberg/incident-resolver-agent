@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { Logo } from "./Logo";
 
 const NAV_ITEMS = [
   { href: "/overview", label: "Overview", icon: "◈" },
@@ -26,11 +27,8 @@ export function Sidebar() {
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-6">
       <div className="mb-8 px-2">
-        <div className="text-xs font-semibold uppercase tracking-widest text-[var(--color-accent)]">
-          Autonomous
-        </div>
-        <div className="text-sm font-bold text-[var(--color-text-primary)]">Incident Resolver</div>
-        <div className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">Production Operations Center</div>
+        <Logo size="sm" />
+        <div className="mt-1.5 text-[11px] text-[var(--color-text-muted)]">Production Operations Center</div>
       </div>
 
       <nav className="flex flex-col gap-1">

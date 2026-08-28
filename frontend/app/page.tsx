@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { Logo } from "./components/Logo";
 
 function ShieldIcon() {
   return (
@@ -40,37 +41,6 @@ function SlidersIcon() {
       <circle cx="7" cy="12" r="2" />
       <circle cx="17" cy="18" r="2" />
     </svg>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="flex items-center gap-2.5">
-      <div
-        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl shadow-lg shadow-black/20"
-        style={{ background: "linear-gradient(135deg, var(--color-primary), var(--color-blocked))" }}
-      >
-        <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3z"
-            stroke="white"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d="M13 7.5l-3.4 5H12l-0.9 4L14.5 11H12l1-3.5z" fill="white" />
-        </svg>
-      </div>
-      <div className="text-base font-bold leading-none text-[var(--color-text-primary)]">
-        Incident{" "}
-        <span
-          className="bg-clip-text text-transparent"
-          style={{ backgroundImage: "linear-gradient(90deg, var(--color-primary), var(--color-blocked))" }}
-        >
-          Resolver
-        </span>
-      </div>
-    </div>
   );
 }
 
