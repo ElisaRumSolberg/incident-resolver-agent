@@ -231,6 +231,15 @@ gcloud run deploy incident-resolver-web --image <artifact-registry-image> \
   --region us-central1 --allow-unauthenticated
 ```
 
+> **Before deploying:** run `gcloud config get-value project` and confirm it
+> matches this project. If you (or another `gcloud` session on the same
+> machine) work on more than one GCP project, the active project can get
+> switched out from under you — every command above then silently runs
+> against the wrong project's Cloud Build / Artifact Registry, which
+> surfaces as a confusing `artifactregistry.repositories.uploadArtifacts`
+> permission-denied error that no amount of IAM-granting fixes. Pass
+> `--project=<PROJECT>` explicitly if in doubt.
+
 Auth is ADC end-to-end via the `incident-resolver-run` service account
 (`roles/datastore.user`, `roles/aiplatform.user`) — no API keys anywhere.
 Gemini runs through Vertex AI; `GOOGLE_CLOUD_LOCATION=global` is required
