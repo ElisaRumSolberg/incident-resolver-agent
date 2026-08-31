@@ -21,6 +21,8 @@ and never auto-executes anything outside the whitelist at all.
 
 ## Architecture
 
+![Architecture diagram](docs/architecture-diagram.png)
+
 ```mermaid
 flowchart TB
     subgraph Client

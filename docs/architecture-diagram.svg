@@ -1,0 +1,114 @@
+<svg viewBox="0 0 1440 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Architecture of the Autonomous Incident Resolver: the dashboard calls a FastAPI backend whose Orchestrator routes every proposed action through a deterministic Safety Policy Engine before it ever reaches the target service, with Gemini 3.5 restricted to diagnosis only.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b" />
+    </marker>
+    <marker id="arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#8b5cf6" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1440" height="900" fill="#0b1220" />
+
+  <text x="60" y="42" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#f8fafc">Autonomous Incident Resolver — Architecture</text>
+  <text x="60" y="64" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Gemini 3.5 (via Google ADK) only diagnoses and proposes — the Safety Policy Engine is the sole place that decides what actually executes.</text>
+
+  <!-- Client row -->
+  <rect x="590" y="90" width="260" height="64" rx="10" fill="#111827" stroke="#3b82f6" stroke-width="1.5" />
+  <text x="720" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Next.js Dashboard</text>
+  <text x="720" y="134" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">(Cloud Run)</text>
+
+  <rect x="920" y="90" width="240" height="64" rx="10" fill="#111827" stroke="#263244" stroke-width="1.5" />
+  <text x="1040" y="115" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Firebase Auth</text>
+  <text x="1040" y="134" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">Google sign-in or guest</text>
+
+  <line x1="850" y1="122" x2="915" y2="122" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="882" y="112" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">sign in</text>
+
+  <!-- Backend container -->
+  <rect x="60" y="180" width="1220" height="470" rx="14" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="6,4" />
+  <text x="82" y="205" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#3b82f6" letter-spacing="1">FASTAPI BACKEND — CLOUD RUN</text>
+
+  <line x1="720" y1="154" x2="720" y2="215" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="895" y="207" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">REST: trigger / approve / reject / poll</text>
+
+  <rect x="590" y="220" width="260" height="60" rx="8" fill="#172033" stroke="#3b82f6" stroke-width="1.5" />
+  <text x="720" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">REST API</text>
+  <text x="720" y="263" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#94a3b8">app/main.py</text>
+
+  <line x1="720" y1="280" x2="720" y2="320" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="750" y="303" font-family="Arial, sans-serif" font-size="10" fill="#64748b">calls</text>
+
+  <rect x="590" y="320" width="260" height="76" rx="8" fill="#172033" stroke="#22d3ee" stroke-width="1.5" />
+  <text x="720" y="345" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Orchestrator</text>
+  <text x="720" y="362" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">observe → act → verify → re-plan</text>
+  <text x="720" y="378" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">app/orchestrator.py</text>
+
+  <!-- Safety Policy Engine (hero element) -->
+  <line x1="640" y1="396" x2="290" y2="438" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrow-accent)" />
+  <text x="420" y="412" text-anchor="middle" font-family="Arial, sans-serif" font-size="11.5" font-weight="700" fill="#8b5cf6">evaluate_safety_policy</text>
+
+  <rect x="100" y="440" width="260" height="92" rx="8" fill="#1c1230" stroke="#8b5cf6" stroke-width="2.5" />
+  <text x="230" y="466" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Safety Policy Engine</text>
+  <text x="230" y="484" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#c4b5fd">whitelist + service profiles +</text>
+  <text x="230" y="499" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#c4b5fd">autonomy mode + kill switch + rate limit</text>
+  <text x="230" y="519" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#8b5cf6">app/agent/policy.py — never trusts the model's own risk opinion</text>
+
+  <line x1="230" y1="532" x2="230" y2="560" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="240" y="550" font-family="Arial, sans-serif" font-size="10" fill="#64748b">reads mode + kill switch</text>
+
+  <rect x="100" y="562" width="260" height="60" rx="8" fill="#172033" stroke="#263244" stroke-width="1.5" />
+  <text x="230" y="587" text-anchor="middle" font-family="Arial, sans-serif" font-size="12.5" font-weight="700" fill="#f8fafc">Autonomy Mode / Kill Switch</text>
+  <text x="230" y="605" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">app/settings_store.py</text>
+
+  <!-- Incident Memory -->
+  <line x1="700" y1="396" x2="530" y2="438" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="640" y="416" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">search_incident_memory</text>
+
+  <rect x="400" y="440" width="240" height="92" rx="8" fill="#172033" stroke="#263244" stroke-width="1.5" />
+  <text x="520" y="466" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Incident Memory</text>
+  <text x="520" y="484" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">similarity search over</text>
+  <text x="520" y="499" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">resolved + failed incidents</text>
+  <text x="520" y="518" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#64748b">app/agent/similarity.py</text>
+
+  <!-- ADK LlmAgent -->
+  <line x1="850" y1="358" x2="1000" y2="438" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="965" y="405" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">tool calls: logs, config,</text>
+  <text x="965" y="420" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">propose_remediation</text>
+
+  <rect x="990" y="440" width="280" height="92" rx="8" fill="#172033" stroke="#263244" stroke-width="1.5" />
+  <text x="1130" y="466" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">ADK LlmAgent</text>
+  <text x="1130" y="484" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">diagnosis + remediation proposal</text>
+  <text x="1130" y="499" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">— never re-proposes a tried action</text>
+  <text x="1130" y="518" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#64748b">app/agent/adk_agent.py</text>
+
+  <!-- External systems row -->
+  <line x1="670" y1="396" x2="720" y2="705" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="742" y="560" font-family="Arial, sans-serif" font-size="11" fill="#64748b">check health / apply fix /</text>
+  <text x="742" y="575" font-family="Arial, sans-serif" font-size="11" fill="#64748b">verify recovery</text>
+
+  <polyline points="590,360 72,360 72,730 95,730" fill="none" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="180" y="350" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" fill="#64748b">persist state + audit trail</text>
+
+  <line x1="1130" y1="532" x2="1130" y2="705" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)" />
+  <text x="1150" y="620" font-family="Arial, sans-serif" font-size="11" fill="#64748b">reasoning only —</text>
+  <text x="1150" y="635" font-family="Arial, sans-serif" font-size="11" fill="#64748b">never decides risk</text>
+
+  <rect x="100" y="710" width="280" height="90" rx="10" fill="#111827" stroke="#f59e0b" stroke-width="1.5" />
+  <text x="240" y="738" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Firestore</text>
+  <text x="240" y="757" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">incidents / remediations / events /</text>
+  <text x="240" y="772" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">settings / service_profiles / postmortems</text>
+
+  <rect x="580" y="710" width="280" height="90" rx="10" fill="#111827" stroke="#263244" stroke-width="1.5" />
+  <text x="720" y="738" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Demo Target Service</text>
+  <text x="720" y="757" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">(Cloud Run)</text>
+  <text x="720" y="772" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">4 simulated failure scenarios</text>
+
+  <rect x="990" y="710" width="280" height="90" rx="10" fill="#111827" stroke="#22d3ee" stroke-width="1.5" />
+  <text x="1130" y="738" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#f8fafc">Gemini 3.5 Flash</text>
+  <text x="1130" y="757" text-anchor="middle" font-family="Arial, sans-serif" font-size="10.5" fill="#94a3b8">(Vertex AI, global endpoint)</text>
+
+  <!-- Caption -->
+  <line x1="60" y1="835" x2="1380" y2="835" stroke="#263244" stroke-width="1" />
+  <text x="60" y="862" font-family="Arial, sans-serif" font-size="12.5" fill="#94a3b8">Every proposed action is evaluated by the Safety Policy Engine before execution: LOW risk auto-runs, MEDIUM waits for a human, HIGH/unknown is always blocked and escalated — regardless of the model's own confidence.</text>
+</svg>
