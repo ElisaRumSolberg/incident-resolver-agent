@@ -115,7 +115,7 @@ function GuestIcon() {
 }
 
 const TECH_BADGES = [
-  { icon: SparkleIcon, label: "Gemini 3" },
+  { icon: SparkleIcon, label: "Gemini 3.5" },
   { icon: LinkIcon, label: "Google ADK" },
   { icon: CloudRunIcon, label: "Cloud Run" },
   { icon: DatabaseIcon, label: "Firestore" },
@@ -150,7 +150,7 @@ const FEATURES = [
 
 const STEPS = [
   { label: "Observe", detail: "Health checks, logs, and config are pulled from the live service.", icon: SearchIcon },
-  { label: "Diagnose", detail: "Gemini 3 proposes a root cause and a remediation action.", icon: BrainIcon },
+  { label: "Diagnose", detail: "Gemini 3.5 proposes a root cause and a remediation action.", icon: BrainIcon },
   {
     label: "Decide",
     detail: "A deterministic policy engine — not the model — decides what happens next.",
@@ -254,7 +254,7 @@ export default function WelcomePage() {
           .
         </h1>
         <p className="mt-5 max-w-xl text-base text-[var(--color-text-secondary)]">
-          Observe, diagnose, act, verify, and re-plan — powered by Gemini 3 and Google ADK, gated by a
+          Observe, diagnose, act, verify, and re-plan — powered by Gemini 3.5 and Google ADK, gated by a
           deterministic safety policy engine that never trusts the model&apos;s own opinion of risk.
         </p>
 

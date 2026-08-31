@@ -103,7 +103,7 @@ export function Sidebar() {
           </div>
         )}
         <div className="px-2 text-[11px] text-[var(--color-text-muted)]">
-          Gemini 3 + Google ADK
+          Gemini 3.5 + Google ADK
           <br />
           Cloud Run · Firestore
         </div>

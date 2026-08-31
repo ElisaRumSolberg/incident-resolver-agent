@@ -37,7 +37,7 @@ flowchart TB
         SIM["Incident Memory\nsimilarity search\napp/agent/similarity.py"]
     end
 
-    GEMINI["Gemini 3\n(Vertex AI)"]
+    GEMINI["Gemini 3.5 Flash\n(Vertex AI)"]
     FS[("Firestore\nincidents / remediations / events /\nsettings / service_profiles / postmortems")]
     DEMO["Demo target service\n(Cloud Run)\n4 simulated failure scenarios"]
 
@@ -221,7 +221,7 @@ cd ../backend
 gcloud run deploy incident-resolver-api --source . --region us-central1 \
   --allow-unauthenticated \
   --service-account incident-resolver-run@<PROJECT>.iam.gserviceaccount.com \
-  --set-env-vars "GOOGLE_CLOUD_PROJECT=<PROJECT>,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3-flash-preview,DEMO_SERVICE_URL=<demo-service-url>,ALLOWED_ORIGINS=<frontend-url>"
+  --set-env-vars "GOOGLE_CLOUD_PROJECT=<PROJECT>,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,DEMO_SERVICE_URL=<demo-service-url>,ALLOWED_ORIGINS=<frontend-url>"
 
 # frontend (NEXT_PUBLIC_API_URL must be baked in at build time)
 cd ../frontend
@@ -243,7 +243,7 @@ gcloud run deploy incident-resolver-web --image <artifact-registry-image> \
 Auth is ADC end-to-end via the `incident-resolver-run` service account
 (`roles/datastore.user`, `roles/aiplatform.user`) — no API keys anywhere.
 Gemini runs through Vertex AI; `GOOGLE_CLOUD_LOCATION=global` is required
-because `gemini-3-flash-preview` is not yet served in regional endpoints
+because `gemini-3.5-flash` is not yet served in regional endpoints
 like `us-central1`.
 
 ## Security notes
